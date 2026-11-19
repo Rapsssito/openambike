@@ -1,0 +1,5 @@
+{
+    "appId": "org.openambike.app",
+    "appName": "OpenAMBike",
+    "webDir": "dist"
+}

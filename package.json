@@ -1,0 +1,40 @@
+{
+    "name": "openambike",
+    "private": true,
+    "license": "AGPL-3.0-only",
+    "type": "module",
+    "engines": {
+        "npm": ">=10.0.0",
+        "node": ">=24.0.0 <25"
+    },
+    "scripts": {
+        "checkjs": "tsc",
+        "lint": "oxlint && oxfmt --check '**/*.{js,mjs,cjs,json,md}'",
+        "lint:fix": "oxlint --fix && oxfmt '**/*.{js,mjs,cjs,json,md}'",
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+        "ci-checks": "npm run checkjs && npm run lint && npm run test",
+        "prepare": "node .husky/install.mjs",
+        "commitlint": "commitlint --edit"
+    },
+    "workspaces": [
+        "app"
+    ],
+    "jest": {
+        "testEnvironment": "node",
+        "roots": [
+            "<rootDir>/app/src"
+        ]
+    },
+    "devDependencies": {
+        "@commitlint/cli": "21.2.3",
+        "@commitlint/config-conventional": "21.2.3",
+        "@types/jest": "30.0.0",
+        "@types/node": "24.19.2",
+        "husky": "9.1.7",
+        "jest": "30.5.2",
+        "jest-environment-node": "30.5.2",
+        "oxfmt": "0.74.0",
+        "oxlint": "1.88.0",
+        "typescript": "7.0.2"
+    }
+}

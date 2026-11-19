@@ -1,0 +1,26 @@
+{
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "tabWidth": 4,
+    "semi": true,
+    "trailingComma": "es5",
+    "singleQuote": true,
+    "bracketSpacing": true,
+    "printWidth": 120,
+    "endOfLine": "lf",
+    "arrowParens": "always",
+    "sortPackageJson": false,
+    // Lists nest by two spaces, as the editor's table of contents writes them. Prose is never wrapped, so a table wider
+    // than the print width is written compact, not padded with spaces that every agent reading the file would pay for.
+    "overrides": [{ "files": ["*.md"], "options": { "tabWidth": 2, "proseWrap": "never" } }],
+    // What is not this project's own text: the licence, generated builds, and what never enters git.
+    "ignorePatterns": [
+        "LICENSE",
+        ".devcontainer/**",
+        "app/dist/**",
+        "app/android/**",
+        "reverse-engineering/apk/**",
+        "reverse-engineering/decompiled/**",
+        "reverse-engineering/private/**",
+        "package-lock.json"
+    ]
+}

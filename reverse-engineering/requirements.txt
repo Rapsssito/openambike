@@ -1,0 +1,19 @@
+# Python packages for reverse-engineering/, at the versions the project uses. Install them in a virtual environment:
+# python3 -m venv .venv && .venv/bin/pip install -r reverse-engineering/requirements.txt
+
+# tools/scan.py, tools/pair.py, tools/cli.py: Bluetooth LE through the system's Bluetooth stack
+bleak==3.1.0
+# tools/pair.py: the pairing agent it registers with BlueZ, on Linux
+dbus-fast==5.2.0
+
+# Static analysis of the official app's APKs
+androguard==4.1.4
+# Dynamic analysis on the phone: frida-server there must have frida's version
+frida==17.27.2
+frida-tools==14.13.2
+# The official app's HTTPS traffic
+mitmproxy==12.3.1
+
+# blutter's own dependencies
+pyelftools==0.33
+requests==2.34.2

@@ -1,0 +1,691 @@
+/* The app's look, defined once: palette, surfaces and the reusable elements of pages/ui.js. Light by default; dark
+   when the system is dark. */
+
+:root {
+    --ion-color-primary: #0f9d76;
+    --ion-color-primary-rgb: 15, 157, 118;
+    --ion-color-primary-contrast: #ffffff;
+    --ion-color-primary-contrast-rgb: 255, 255, 255;
+    --ion-color-primary-shade: #0d8a68;
+    --ion-color-primary-tint: #27a784;
+
+    --app-bg: #f2f4f3;
+    --app-surface: #ffffff;
+    --app-surface-2: #eef1f0;
+    --app-text: #14201c;
+    --app-muted: #66736e;
+    --app-line: rgba(20, 32, 28, 0.08);
+    --app-accent-soft: rgba(15, 157, 118, 0.12);
+    --app-warning: #e8590c;
+    --app-danger: #d6336c;
+    --app-radius: 18px;
+    --app-shadow: 0 1px 2px rgba(20, 32, 28, 0.06), 0 4px 16px rgba(20, 32, 28, 0.05);
+
+    --ion-background-color: var(--app-bg);
+    --ion-toolbar-background: var(--app-bg);
+    --ion-tab-bar-background: var(--app-surface);
+    --ion-text-color: var(--app-text);
+    --ion-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ion-color-primary: #34d3a2;
+        --ion-color-primary-rgb: 52, 211, 162;
+        --ion-color-primary-contrast: #06231a;
+        --ion-color-primary-contrast-rgb: 6, 35, 26;
+        --ion-color-primary-shade: #2eba8f;
+        --ion-color-primary-tint: #48d7ab;
+
+        --app-bg: #0b0f0e;
+        --app-surface: #161c1a;
+        --app-surface-2: #1f2724;
+        --app-text: #e9efed;
+        --app-muted: #8d9a95;
+        --app-line: rgba(233, 239, 237, 0.08);
+        --app-accent-soft: rgba(52, 211, 162, 0.16);
+        --app-warning: #ff922b;
+        --app-danger: #f06595;
+        --app-shadow: none;
+    }
+}
+
+/* Layout. */
+
+.page-body {
+    padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.lead {
+    color: var(--app-muted);
+    margin: 4px 4px 16px;
+    line-height: 1.45;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.stack > * + * {
+    margin-top: 12px;
+}
+
+/* Card and section. */
+
+.card {
+    background: var(--app-surface);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow);
+    overflow: hidden;
+}
+
+.card.padded {
+    padding: 16px;
+}
+
+.section {
+    margin-top: 24px;
+}
+
+.section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--app-muted);
+    margin: 0 4px 8px;
+}
+
+.section-footer {
+    font-size: 0.85rem;
+    color: var(--app-muted);
+    margin: 8px 4px 0;
+    line-height: 1.4;
+}
+
+/* Gauge. */
+
+.gauge {
+    position: relative;
+    width: 168px;
+    height: 168px;
+    flex: none;
+}
+
+.gauge svg {
+    width: 100%;
+    height: 100%;
+}
+
+.gauge circle {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+}
+
+.gauge-track {
+    stroke: var(--app-surface-2);
+}
+
+.gauge-fill {
+    stroke: var(--ion-color-primary);
+    transition: stroke-dashoffset 0.6s ease;
+}
+
+.gauge.low .gauge-fill {
+    stroke: var(--app-warning);
+}
+
+.gauge-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.gauge-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.gauge-caption {
+    font-size: 0.85rem;
+    color: var(--app-muted);
+}
+
+/* Hero: the gauge with the figures beside it. */
+
+.hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+}
+
+.hero-figures {
+    flex: 1;
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+/* Stat. */
+
+.stat {
+    min-width: 0;
+}
+
+.grid-2 > .stat {
+    background: var(--app-surface);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow);
+    padding: 14px 16px;
+}
+
+.stat-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--app-muted);
+}
+
+.stat-value {
+    font-size: 1.35rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Toggle tile. */
+
+.tile {
+    appearance: none;
+    border: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: var(--app-surface);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow);
+    padding: 16px;
+    min-height: 112px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.1s ease;
+}
+
+.tile:active {
+    transform: scale(0.97);
+}
+
+.tile:focus-visible,
+.choice-option:focus-visible,
+.row.action:focus-visible {
+    outline: 3px solid var(--ion-color-primary);
+    outline-offset: 2px;
+}
+
+.tile-icon {
+    font-size: 26px;
+    color: var(--app-muted);
+    margin-bottom: auto;
+}
+
+.tile-label {
+    font-weight: 600;
+    margin-top: 12px;
+}
+
+.tile-state {
+    font-size: 0.85rem;
+    color: var(--app-muted);
+}
+
+.tile.on {
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+}
+
+.tile.on .tile-icon,
+.tile.on .tile-state {
+    color: inherit;
+    opacity: 0.9;
+}
+
+.tile.busy {
+    opacity: 0.7;
+}
+
+.tile:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* Choice. */
+
+.choice {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    gap: 6px;
+    background: var(--app-surface-2);
+    border-radius: 14px;
+    padding: 4px;
+}
+
+.choice-option {
+    appearance: none;
+    border: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--app-muted);
+    background: transparent;
+    border-radius: 11px;
+    min-height: 44px;
+    padding: 0 8px;
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease;
+}
+
+.choice-option.selected {
+    background: var(--app-surface);
+    color: var(--ion-color-primary);
+    box-shadow: var(--app-shadow);
+}
+
+/* Rows. */
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 16px;
+    width: 100%;
+}
+
+.row + .row {
+    border-top: 1px solid var(--app-line);
+}
+
+.row ion-toggle {
+    width: 100%;
+}
+
+.row-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.row-value {
+    color: var(--app-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.row.action {
+    appearance: none;
+    border: none;
+    border-radius: 0;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.row.action:active {
+    background: var(--app-surface-2);
+}
+
+.row-icon {
+    font-size: 20px;
+    color: var(--ion-color-primary);
+}
+
+.row-chevron {
+    font-size: 16px;
+    color: var(--app-muted);
+}
+
+.row.action.danger,
+.row.action.danger .row-icon {
+    color: var(--app-danger);
+}
+
+/* Assist editor. */
+
+.mode-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 16px 16px 0;
+}
+
+.mode-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.slider {
+    padding: 12px 16px 4px;
+}
+
+.slider-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.slider-label {
+    color: var(--app-muted);
+    font-size: 0.9rem;
+}
+
+.slider-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.slider ion-range {
+    padding: 0;
+    --bar-height: 6px;
+    --bar-border-radius: 3px;
+    --knob-size: 26px;
+}
+
+.slider-limits {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--app-muted);
+    margin-top: -6px;
+}
+
+.mode-actions {
+    padding: 8px 16px 16px;
+}
+
+/* Connect screen. */
+
+.brand {
+    text-align: center;
+    padding: 40px 0 8px;
+}
+
+.brand-mark {
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    font-size: 38px;
+}
+
+.brand-name {
+    font-size: 1.8rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+.status-message {
+    text-align: center;
+    color: var(--app-muted);
+    margin: 4px 16px 24px;
+    min-height: 1.4em;
+}
+
+.status-message.error {
+    color: var(--app-danger);
+}
+
+.key-field ion-input {
+    --padding-start: 16px;
+    --padding-end: 8px;
+}
+
+.key-saved {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+}
+
+.key-saved ion-icon {
+    font-size: 22px;
+    color: var(--ion-color-primary);
+}
+
+.disclaimer {
+    font-size: 0.8rem;
+    color: var(--app-muted);
+    text-align: center;
+    margin: 32px 16px 0;
+    line-height: 1.4;
+}
+
+/* Key backup. */
+
+.form-row {
+    padding: 4px 16px;
+}
+
+.form-row + .form-row {
+    border-top: 1px solid var(--app-line);
+}
+
+.export-text {
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    word-break: break-all;
+}
+
+/* Section title icon, status badge, toasts and spinners. */
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.section-title ion-icon {
+    font-size: 15px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ion-color-primary);
+    background: var(--app-accent-soft);
+    border-radius: 999px;
+    padding: 4px 10px;
+    margin-inline-end: 8px;
+}
+
+.status-badge .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.status-badge.pulse .dot {
+    animation: pulse 0.8s ease-out;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0.6);
+    }
+    100% {
+        box-shadow: 0 0 0 8px rgba(var(--ion-color-primary-rgb), 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .status-badge.pulse .dot,
+    .gauge-fill,
+    .tile,
+    .choice-option {
+        animation: none;
+        transition: none;
+    }
+}
+
+ion-toast.toast-success {
+    --background: var(--app-surface);
+    --color: var(--app-text);
+    --box-shadow: var(--app-shadow);
+}
+
+ion-toast.toast-success::part(icon) {
+    color: var(--ion-color-primary);
+}
+
+ion-toast.toast-error {
+    --background: var(--app-danger);
+    --color: #ffffff;
+}
+
+.button-spinner {
+    width: 18px;
+    height: 18px;
+    margin-inline-end: 8px;
+    color: inherit;
+}
+
+/* Connect steps. */
+
+.steps {
+    padding: 4px 0;
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 0 16px;
+    color: var(--app-muted);
+}
+
+.step + .step {
+    border-top: 1px solid var(--app-line);
+}
+
+.step-mark {
+    width: 22px;
+    display: grid;
+    place-items: center;
+}
+
+.step-mark ion-icon {
+    font-size: 20px;
+}
+
+.step-mark ion-spinner {
+    width: 18px;
+    height: 18px;
+}
+
+.step.active {
+    color: var(--app-text);
+    font-weight: 600;
+}
+
+.step.done .step-mark {
+    color: var(--ion-color-primary);
+}
+
+.step.failed .step-mark {
+    color: var(--app-danger);
+}
+
+.grid-2.inner {
+    padding: 14px 16px;
+}
+
+.mode-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ion-color-primary);
+    background: var(--app-accent-soft);
+    border-radius: 999px;
+    padding: 3px 10px;
+}
+
+.mode-badge.dirty {
+    color: var(--app-warning);
+    background: rgba(232, 89, 12, 0.12);
+}
+
+.slider-label ion-icon {
+    vertical-align: -2px;
+}
+
+.units-row {
+    padding-block: 8px;
+}
+
+.units-row .choice {
+    flex: 0 0 140px;
+}
+
+.connect-page ion-header:not([collapse]) {
+    display: none;
+}
+
+.connect-page ion-header[collapse] {
+    display: none;
+}
+
+.field-icon {
+    color: var(--app-muted);
+    margin-inline-end: 8px;
+}
+
+.forget {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 8px 4px;
+    border-top: 1px solid var(--app-line);
+}
+
+.connect-button {
+    --border-radius: 14px;
+    min-height: 52px;
+    font-weight: 600;
+}
+
+.grid-2.inner > .stat {
+    background: var(--app-surface-2);
+    box-shadow: none;
+}

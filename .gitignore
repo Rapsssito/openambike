@@ -1,0 +1,15 @@
+# Each contributor's own development container, if any.
+.devcontainer/
+/reverse-engineering/apk/
+/reverse-engineering/decompiled/
+/reverse-engineering/private/
+# Also anywhere else, in case one is created by mistake.
+apk/
+decompiled/
+private/
+*.log
+*.keystore
+*.jks
+node_modules/
+.venv/
+__pycache__/

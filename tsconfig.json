@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "esModuleInterop": true,
+        "target": "es2023",
+        "module": "esnext",
+        "lib": ["es2023", "dom", "dom.iterable"],
+        "resolveJsonModule": true,
+        "allowSyntheticDefaultImports": true,
+        "types": ["node", "jest", "vite/client"]
+    },
+    // The app's code runs in the browser and in Capacitor's web view; Vite bundles it, so imports resolve as a
+    // bundler resolves them. Tests run the same files under Jest.
+    "include": ["app/src/**/*", "app/*.config.js", "*.config.js", ".husky/*.mjs"],
+    "exclude": ["**/node_modules", "app/dist", "app/android", "coverage"]
+}
