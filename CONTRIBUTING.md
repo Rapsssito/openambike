@@ -13,7 +13,7 @@ How to contribute to OpenAMBike: what helps most, the rules every change follows
 
 ## What helps most
 
-- **Captures from other bikes.** The specification is written from one Stellar of 2022 (second generation, firmware 3.9.0). A Bluetooth capture of the official app talking to another model, generation or firmware shows what differs. How to make one is in [reverse-engineering/README.md](reverse-engineering/README.md), "Captures with the official app"; remove the private data before sharing it ([docs/safety.md](docs/safety.md), "Private data").
+- **Captures from other bikes.** The specification is written from one Stellar of 2022 (second generation, firmware 3.9.0). A Bluetooth capture of the official app talking to another model, generation or firmware shows what differs. How to make one is in [reverse-engineering/README.md](reverse-engineering/README.md), "Captures with the official app"; remove the private data before sharing it ([docs/safety.md](docs/safety.md), "Private data"), then describe it in an [issue](https://github.com/Rapsssito/openambike/issues).
 - **Filling the unknowns.** Every gap in [docs/protocol.md](docs/protocol.md) is marked **Unknown**, and [docs/roadmap.md](docs/roadmap.md) lists what is left to find.
 - **The app.** Bugs, translations (one JSON file per language in `app/src/i18n/`) and screens for what the specification documents. See [app/README.md](app/README.md).
 
@@ -26,7 +26,9 @@ How to contribute to OpenAMBike: what helps most, the rules every change follows
 
 ## Setting up
 
-The app needs Node 24 (the version `.nvmrc` names); building for Android also needs JDK 21 and the Android SDK. Reverse engineering needs more tools, listed in [reverse-engineering/README.md](reverse-engineering/README.md), "Requirements".
+Get the code with `git clone https://github.com/Rapsssito/openambike.git`; changes come as pull requests to that repository.
+
+The app needs Node 26 (the version `.nvmrc` names); building for Android also needs JDK 21 and the Android SDK. Reverse engineering needs more tools, listed in [reverse-engineering/README.md](reverse-engineering/README.md), "Requirements".
 
 From the root of the repository:
 
@@ -44,7 +46,7 @@ The app's own commands are in [app/README.md](app/README.md); the reverse-engine
 
 - `npm run ci-checks` passes before every commit.
 - `git status` shows nothing from `reverse-engineering/apk/`, `reverse-engineering/decompiled/` or `reverse-engineering/private/`.
-- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`, `docs: …`); the commit-msg hook checks them.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`, `docs: …`); the commit-msg hook checks them. The commits merged into `main` since the last release decide the version of the next one, made by hand: `fix` a patch, `feat` a minor version, a breaking change a major one ([app/README.md](app/README.md), "Build and release").
 - A library added to the app has its licence read at its source first, and must be compatible with AGPL-3.0 ([app/README.md](app/README.md), "Libraries and licences").
 - A tool the project starts to need is added to the requirements of its part (an `npm` dependency, `reverse-engineering/requirements.txt`, or the README's list of tools). How each contributor installs the tools, on the computer or in a container of their own, stays out of the repository: git ignores `.devcontainer/`.
 

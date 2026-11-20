@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// The version of the release, written by app/scripts/release.js when semantic-release makes one; F-Droid reads it too.
+def releaseVersion = new Properties()
+file('version.properties').withInputStream { releaseVersion.load(it) }
+
+// The release signing key, given by environment variables so that it never enters the repository. Without them, the
+// release APK is built unsigned (as F-Droid builds it before comparing it with the published one).
+def keystoreFile = System.getenv('OPENAMBIKE_KEYSTORE')
+
 android {
     namespace = "org.openambike.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +15,8 @@ android {
         applicationId "org.openambike.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersion.getProperty('versionCode').toInteger()
+        versionName releaseVersion.getProperty('versionName')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +24,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystoreFile) {
+                storeFile file(keystoreFile)
+                storePassword System.getenv('OPENAMBIKE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('OPENAMBIKE_KEY_ALIAS')
+                keyPassword System.getenv('OPENAMBIKE_KEY_PASSWORD')
+            }
+        }
+    }
+    // No dependency metadata in the APK: it is a blob encrypted for Google that F-Droid refuses.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     buildTypes {
         release {
+            if (keystoreFile) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -44,11 +68,3 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}

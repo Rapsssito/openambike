@@ -115,5 +115,17 @@
     "battery.idle": "Idle",
     "more.keyBackup": "Backup",
     "more.app": "App",
-    "more.forgotten": "The key was removed from this device."
+    "more.forgotten": "The key was removed from this device.",
+    "home.keyGuide": "How do I get my key?",
+    "home.readReport": "Read from a bug report",
+    "home.reportReading": "Looking for the key in the bug report…",
+    "home.reportUnreadable": "This file is not a bug report the app can read. Choose the .zip that \"Take bug report\" made.",
+    "home.reportNoLog": "No Bluetooth log in this bug report. Turn on \"Bluetooth HCI snoop log\", turn Bluetooth off and on, connect with the official app, then take the bug report again.",
+    "home.reportNoConnection": "The bug report does not show the official app connecting to the bike. Connect with the official app after turning on the snoop log, set to \"Enabled\", then take the bug report again.",
+    "home.reportNoKey": "The bike accepted no key in this bug report. Connect with the official app again and take a new bug report.",
+    "home.reportChooseTitle": "More than one key",
+    "home.reportChoose": "The bug report holds more than one bike or owner. Only the right key is accepted; try another if the bike refuses it.",
+    "home.reportKeyOption": "Key {n}, ending in {end}",
+    "home.reportUse": "Use",
+    "home.reportFound": "Key read from the bug report. Connect to check it, then delete the bug report: it holds the key and other private data."
 }

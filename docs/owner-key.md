@@ -1,6 +1,6 @@
 # Getting your owner key
 
-OpenAMBike needs your bike's owner key to connect: a fixed text of 28 characters that the official Ampler app wrote to your bike when you first paired it, and sends again on every connection. It is the identifier of your Ampler account ([protocol.md](protocol.md), "Connection and authentication"). Neither the bike nor any screen of the official app shows it, but a Bluetooth log of the official app connecting to the bike holds it. This guide gets it from that log.
+OpenAMBike needs your bike's owner key to connect: a fixed text of 28 characters that the official Ampler app wrote to your bike when you first paired it, and sends again on every connection. It is the identifier of your Ampler account ([protocol.md](protocol.md), "Connection and authentication"). Neither the bike nor any screen of the official app shows it, but a Bluetooth log of the official app connecting to the bike holds it. This guide gets it from that log, with OpenAMBike itself or with a script on a computer.
 
 ## Contents
 
@@ -16,7 +16,7 @@ OpenAMBike needs your bike's owner key to connect: a fixed text of 28 characters
 You need:
 
 - **An Android phone where the official app still connects to your bike.** The official app sends the key it keeps on the phone, with no call to Ampler's servers, so it works as long as the app still opens and connects. With an iPhone, this guide does not apply: recording Bluetooth on an iPhone has not been tried.
-- **A computer with Python 3**, on Linux, macOS or Windows, and a copy of this repository. The script used in step 3 needs nothing else installed.
+- **OpenAMBike** on the phone (the Android app, or the web app in Chrome), to read the key from the log. Instead, a computer with Python 3, on Linux, macOS or Windows, and a copy of [the repository](https://github.com/Rapsssito/openambike) can read it.
 
 Keep the key secret: anyone who has it can unlock and control your bike. OpenAMBike keeps it encrypted on your device and can export an encrypted backup.
 
@@ -33,12 +33,22 @@ If you no longer have the official app or your Ampler account, there is no known
 
 The phone saves the Bluetooth log inside a bug report, a `.zip` file. Either:
 
-- **On the phone:** in Developer options, "Take bug report", then "Full report". After a few minutes a notification offers to share it; send it to your computer.
+- **On the phone:** in Developer options, "Take bug report", then "Full report". After a few minutes a notification offers to share it; save it to the phone's files, or send it to your computer to read it there.
 - **With ADB:** connected to the phone, run `adb bugreport bugreport.zip` on the computer.
 
 ## 3. Read the key from the bug report
 
-From the `reverse-engineering/` folder of the repository, run:
+### With OpenAMBike
+
+1. Close the official app, and open OpenAMBike.
+2. On the connect screen, tap "Read from a bug report" and choose the bug report's `.zip`.
+3. OpenAMBike fills in the owner key. Tap "Connect": once the bike accepts it, OpenAMBike keeps it on that device.
+
+OpenAMBike reads the file on the phone only: it sends nothing anywhere and keeps nothing of the bug report but the key, once the bike accepts it. In the web app, the bug report can also be read on a computer, in Chrome or Edge.
+
+### With a computer
+
+From the `reverse-engineering/` folder of a copy of [the repository](https://github.com/Rapsssito/openambike) (`git clone https://github.com/Rapsssito/openambike.git`), run:
 
 ```sh
 python3 tools/owner_key.py path/to/bugreport.zip
@@ -46,18 +56,20 @@ python3 tools/owner_key.py path/to/bugreport.zip
 
 On Windows, the command may be `python` or `py` instead of `python3`.
 
-It prints the owner key: 28 characters on one line. Type it into OpenAMBike's connect screen; once the bike accepts it, OpenAMBike keeps it on that device. Then use "Export the key", in OpenAMBike's More tab, to keep an encrypted backup somewhere safe.
+It prints the owner key: 28 characters on one line. Type it into OpenAMBike's connect screen; once the bike accepts it, OpenAMBike keeps it on that device. The script reads the file on your computer only, sends nothing anywhere and saves nothing.
 
-The script reads the file on your computer only, sends nothing anywhere and saves nothing.
+### Then
+
+Use "Export the key", in OpenAMBike's More tab, to keep an encrypted backup somewhere safe.
 
 ## 4. Clean up
 
-- Delete the bug report from the computer and the phone: it holds your owner key, and also your phone's logs, addresses and possibly your location.
+- Delete the bug report from the phone, and from the computer if you sent it there: it holds your owner key, and also your phone's logs, addresses and possibly your location.
 - Set "Bluetooth HCI snoop log" back to **Disabled**.
 
 ## If it does not work
 
-The script says what it found:
+OpenAMBike and the script say what they found:
 
 - **No Bluetooth log in the bug report:** the snoop log was off, or Bluetooth was not turned off and on after turning it on. Repeat steps 1 and 2.
 - **The log does not show the official app connecting:** the official app connected before the recording started, or the log was "Enabled Filtered". Repeat steps 1 and 2.

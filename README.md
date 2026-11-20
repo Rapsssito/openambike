@@ -2,6 +2,8 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+Source code, issues and releases: <https://github.com/Rapsssito/openambike>.
+
 ## Contents
 
 - [Why it exists](#why-it-exists)
@@ -18,11 +20,11 @@ Ampler Bikes OÜ went bankrupt, and its e-bikes depend on its app and its server
 - **An open specification** of the bikes' Bluetooth Low Energy (BLE) protocol, [docs/protocol.md](docs/protocol.md), written from captures of the official app's traffic, from analysis of the official app, and from tests on a real bike.
 - **An app** built on that specification, for Android and for the web (Chrome or Edge), that talks to the bike directly and needs no server, no account and no internet connection.
 
-All the app needs is your bike's **owner key**: a fixed 28-character text that the official app wrote to the bike when it was first paired. [docs/owner-key.md](docs/owner-key.md) shows how to get it from your phone while the official app still connects to your bike.
+All the app needs is your bike's **owner key**: a fixed 28-character text that the official app wrote to the bike when it was first paired. [docs/owner-key.md](docs/owner-key.md) shows how to get it from your phone while the official app still connects to your bike; the app can read it from the phone's bug report.
 
 ## Where to start
 
-- **You own an Ampler and want to keep using it:** get your owner key first, while the official app still works ([docs/owner-key.md](docs/owner-key.md)). Then read [What works](#what-works) and [app/README.md](app/README.md); until a release is published, the app is built from source.
+- **You own an Ampler and want to keep using it:** get your owner key first, while the official app still works ([docs/owner-key.md](docs/owner-key.md)). Then read [What works](#what-works) and [app/README.md](app/README.md); install the APK of the latest [release](https://github.com/Rapsssito/openambike/releases), or build the app from source (`git clone https://github.com/Rapsssito/openambike.git`).
 - **You want to learn the protocol, or extend it to another bike or firmware:** read [docs/protocol.md](docs/protocol.md), then [reverse-engineering/README.md](reverse-engineering/README.md) for how it was found and the tools that talk to a bike from a computer. Captures from other models and generations are the most useful contribution.
 - **You want to improve the app:** read [app/README.md](app/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 

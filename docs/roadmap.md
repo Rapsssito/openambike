@@ -20,10 +20,7 @@ Today the app works only for an owner who still has the key the official app wro
 
 ## 3. Other generations and models
 
-- Build and sign a release APK.
-- Publish the repository, after checking that nothing of Ampler's and no private data is in its history, and the signed APKs as releases; consider F-Droid.
-- Link the app's connect screen to [owner-key.md](owner-key.md) at its published address, as "How do I get my key?".
-- Read the owner key from a bug report inside the app, on the connect screen, so that no computer is needed: open the `.zip` with the browser's own decompression, with no new library, find the key the bike accepted as `reverse-engineering/tools/owner_key.py` does, and keep everything on the device.
+- Publish the app on F-Droid, with F-Droid publishing the project's own signed APK once its build of the same tag is identical (reproducible builds), so that owners can move between the GitHub releases and F-Droid without reinstalling.
 - Ask owners of other Ampler models and generations to try the app and to send captures of the official app, and write what differs into [protocol.md](protocol.md), "Differences by generation".
 - How the official app 3.0.9 authenticates with and reads the battery of a G1 bike, from its code, to be confirmed by a G1 owner's capture.
 

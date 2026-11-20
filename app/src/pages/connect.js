@@ -3,6 +3,7 @@ import {
     bicycle,
     checkmarkCircle,
     closeCircle,
+    documentTextOutline,
     ellipseOutline,
     eye,
     eyeOff,
@@ -12,8 +13,24 @@ import {
 
 import { AuthenticationError, chooseBike } from '../ble/bike.js';
 import { isOwnerKey } from '../ble/protocol.js';
+import { ownerKeysInBugReport } from '../bug-report/owner-key.js';
 import { t } from '../i18n/i18n.js';
-import { button, card, el, icon, inputValue, page, setInputValue } from './ui.js';
+import {
+    button,
+    card,
+    chooseOne,
+    el,
+    externalLink,
+    icon,
+    inputValue,
+    page,
+    pickFile,
+    setInputValue,
+    whileBusy,
+} from './ui.js';
+
+/** The guide to getting the owner key, at the repository's published address. */
+export const OWNER_KEY_GUIDE_URL = 'https://github.com/Rapsssito/openambike/blob/main/docs/owner-key.md';
 
 /** @typedef {import('../ble/bike.js').BleClientLike} BleClientLike */
 /** @typedef {import('../ble/bike.js').Bike} Bike */
@@ -90,7 +107,17 @@ export function connectPage({ client, native, bluetoothAvailable, keyStore, mess
         initial ?? (bluetoothAvailable ? t('home.tagline') : t('home.bluetoothMissing')),
     ]);
     if (!bluetoothAvailable) message.classList.add('error');
-    const keyCard = card([el('div', { class: 'key-field' }, [keyInput])]);
+    // Reading the key from a bug report needs only the browser's own decompression, so it is offered wherever that
+    // exists; the bug report itself comes from an Android phone.
+    const readReportButton = el('ion-button', { fill: 'clear', size: 'small' }, [
+        icon(documentTextOutline, { slot: 'start' }),
+        t('home.readReport'),
+    ]);
+    readReportButton.hidden = typeof DecompressionStream === 'undefined';
+    const keyCard = card([
+        el('div', { class: 'key-field' }, [keyInput]),
+        el('div', { class: 'key-actions' }, [readReportButton, externalLink(t('home.keyGuide'), OWNER_KEY_GUIDE_URL)]),
+    ]);
     const forgetButton = el('ion-button', { fill: 'clear', size: 'small', slot: 'end' }, [t('home.forgetKey')]);
     const savedCard = card([
         el('div', { class: 'key-saved' }, [
@@ -134,6 +161,39 @@ export function connectPage({ client, native, bluetoothAvailable, keyStore, mess
         message.textContent = text;
         message.classList.toggle('error', error);
     };
+
+    readReportButton.addEventListener('click', async () => {
+        const file = await pickFile('.zip,application/zip,application/x-zip-compressed,.log');
+        if (!file) return;
+        say(t('home.reportReading'));
+        /** @type {import('../bug-report/owner-key.js').BugReportKeys} */
+        let found;
+        try {
+            found = await whileBusy(readReportButton, () => ownerKeysInBugReport(file));
+        } catch {
+            say(t('home.reportUnreadable'), true);
+            return;
+        }
+        if (found.logs === 0) return say(t('home.reportNoLog'), true);
+        if (!found.authFound) return say(t('home.reportNoConnection'), true);
+        if (found.keys.length === 0) return say(t('home.reportNoKey'), true);
+        const key =
+            found.keys.length === 1
+                ? found.keys[0]
+                : await chooseOne({
+                      header: t('home.reportChooseTitle'),
+                      message: t('home.reportChoose'),
+                      confirm: t('home.reportUse'),
+                      options: found.keys.map((value, index) => ({
+                          value,
+                          label: t('home.reportKeyOption', { n: String(index + 1), end: value.slice(-4) }),
+                      })),
+                  });
+        if (key === null) return say(t('home.tagline'));
+        setInputValue(keyInput, key);
+        keyInput.classList.remove('ion-invalid');
+        say(t('home.reportFound'));
+    });
 
     connectButton.addEventListener('click', async () => {
         const key = storedKey ?? inputValue(keyInput).trim();

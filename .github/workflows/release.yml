@@ -1,0 +1,53 @@
+# Run by hand from the Actions tab, on main: the checks, then semantic-release (release.config.js), which makes a release
+# when the commits since the last one call for it, with the signed APK attached. The signing key comes from the
+# repository's secrets (app/README.md, "Build and release").
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - run: npm run ci-checks
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "The ANDROID_KEYSTORE_BASE64 secret is missing: no unsigned release is published." >&2; exit 1; fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAMBIKE_KEYSTORE: ${{ runner.temp }}/release.keystore
+          OPENAMBIKE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          OPENAMBIKE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          OPENAMBIKE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: npx semantic-release
+      - name: Forget the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"

@@ -689,3 +689,22 @@ ion-toast.toast-error {
     background: var(--app-surface-2);
     box-shadow: none;
 }
+
+.key-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 12px;
+    padding: 4px 8px 8px;
+    border-top: 1px solid var(--app-line);
+}
+
+.external-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 8px;
+    font-size: 0.9rem;
+    color: var(--ion-color-primary);
+}

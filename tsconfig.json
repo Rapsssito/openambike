@@ -16,6 +16,6 @@
     },
     // The app's code runs in the browser and in Capacitor's web view; Vite bundles it, so imports resolve as a
     // bundler resolves them. Tests run the same files under Jest.
-    "include": ["app/src/**/*", "app/*.config.js", "*.config.js", ".husky/*.mjs"],
+    "include": ["app/src/**/*", "app/scripts/**/*", "app/*.config.js", "*.config.js", ".husky/*.mjs"],
     "exclude": ["**/node_modules", "app/dist", "app/android", "coverage"]
 }

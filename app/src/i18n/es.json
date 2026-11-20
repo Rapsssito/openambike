@@ -115,5 +115,17 @@
     "battery.idle": "En reposo",
     "more.keyBackup": "Copia de seguridad",
     "more.app": "App",
-    "more.forgotten": "La clave se ha borrado de este dispositivo."
+    "more.forgotten": "La clave se ha borrado de este dispositivo.",
+    "home.keyGuide": "¿Cómo consigo mi clave?",
+    "home.readReport": "Leer de un informe de errores",
+    "home.reportReading": "Buscando la clave en el informe de errores…",
+    "home.reportUnreadable": "Este archivo no es un informe de errores que la app pueda leer. Elige el .zip que creó \"Crear informe de errores\".",
+    "home.reportNoLog": "No hay registro de Bluetooth en este informe. Activa \"Registro de búsqueda de Bluetooth HCI\", apaga y enciende el Bluetooth, conecta con la app oficial y vuelve a crear el informe.",
+    "home.reportNoConnection": "El informe no muestra a la app oficial conectando con la bici. Conecta con la app oficial después de activar el registro, en \"Habilitado\", y vuelve a crear el informe.",
+    "home.reportNoKey": "La bici no aceptó ninguna clave en este informe. Vuelve a conectar con la app oficial y crea un informe nuevo.",
+    "home.reportChooseTitle": "Más de una clave",
+    "home.reportChoose": "El informe contiene más de una bici o propietario. Solo se acepta la clave correcta; si la bici la rechaza, prueba otra.",
+    "home.reportKeyOption": "Clave {n}, acabada en {end}",
+    "home.reportUse": "Usar",
+    "home.reportFound": "Clave leída del informe de errores. Conecta para comprobarla y luego borra el informe: contiene la clave y otros datos privados."
 }

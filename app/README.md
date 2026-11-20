@@ -17,7 +17,7 @@ The web build runs in browsers with Web Bluetooth: Chrome and Edge, on desktop a
 
 ## Running
 
-You need Node 24 and, for Android, JDK 21 and the Android SDK with `platforms;android-36` and `build-tools;36.0.0`. Android Studio is not needed: the APK is built with Gradle on the command line and tried on a real phone. Run `npm install` once at the root of the repository, then, from the root:
+You need Node 26 and, for Android, JDK 21 and the Android SDK with `platforms;android-36` and `build-tools;36.0.0`. Android Studio is not needed: the APK is built with Gradle on the command line and tried on a real phone. Run `npm install` once at the root of the repository, then, from the root:
 
 | Command | What it does |
 | --- | --- |
@@ -27,11 +27,11 @@ You need Node 24 and, for Android, JDK 21 and the Android SDK with `platforms;an
 | `adb install -r app/android/app/build/outputs/apk/debug/app-debug.apk` | Install the debug APK on a phone connected to ADB |
 | `cd app && npx cap run android` | Build, install and start the debug app on a phone connected to ADB |
 
-The bike accepts one connection at a time: close the official app first. On Android, the first connection asks for the 6-digit code the bike shows, to pair. Then type the owner key once ([docs/owner-key.md](../docs/owner-key.md) shows how to get it); the app keeps it on the device.
+The bike accepts one connection at a time: close the official app first. On Android, the first connection asks for the 6-digit code the bike shows, to pair. Then type the owner key once, or read it from a bug report ([docs/owner-key.md](../docs/owner-key.md) shows how to get it); the app keeps it on the device.
 
 ## Screens
 
-- **Connect:** the owner key, typed once per device (with a button that shows it) or kept from before, and the connection shown step by step: connect, check the key, read the bike.
+- **Connect:** the owner key, typed once per device (with a button that shows it) or kept from before, and the connection shown step by step: connect, check the key, read the bike. Under the key, "Read from a bug report" fills it in from an Android bug report (the `.zip`, or a `btsnoop_hci.log` on its own), and "How do I get my key?" opens [docs/owner-key.md](https://github.com/Rapsssito/openambike/blob/main/docs/owner-key.md) in the system's browser.
 - Once connected, four tabs, each with the connection status in its header:
   - **Bike:** the battery's charge as a ring with the range; speed, motor and rider power; the assist mode (off, mode 1, mode 2); lights and lock as large tiles; odometer and range.
   - **Assist:** the assist speed (10 to 25 km/h) and assist amount (40 to 100 %) of each of the two modes, read from the bike and written back as [docs/protocol.md](../docs/protocol.md), "Commands sent to the bike", says for the assist levels. Each mode is saved on its own and marked while not saved.
@@ -44,7 +44,7 @@ A screen or control exists only for what the specification documents.
 
 - JavaScript, not TypeScript: ES modules with types written in JSDoc and checked by `tsc` (`checkJs`, `strict`), so that every file runs as written and is still type-checked.
 - Ionic's web components (`@ionic/core`) used directly as custom elements, with no UI framework; pages and state are plain modules. Vite bundles the web build, and Capacitor wraps it for Android.
-- npm, with a root `package.json` that holds the tools (TypeScript, oxlint, oxfmt, Jest, husky, commitlint) and `app/` as an npm workspace that holds the app's own dependencies. Versions are exact (`.npmrc`); Node's version is the one `.nvmrc` names.
+- npm, with a root `package.json` that holds the tools (TypeScript, oxlint, oxfmt, Jest, husky, commitlint, semantic-release) and `app/` as an npm workspace that holds the app's own dependencies. Versions are exact (`.npmrc`); Node's version is the one `.nvmrc` names.
 - Interface in English and Spanish, every text in translation files, so that other owners can add their languages.
 - BLE through `@capacitor-community/bluetooth-le`, which uses Android's Bluetooth in the Android build and Web Bluetooth in the web build. Whether the bike's passkey pairing works through Web Bluetooth on each system: **Unknown**.
 - Nothing native that the web build cannot do: a feature that needs a platform API checks for it and is hidden where it is missing.
@@ -59,9 +59,11 @@ A screen or control exists only for what the specification documents.
 - `src/session.js`: a connected bike and everything known about it, read at the start and kept live by the bike's notifications. Screens read its state and call its commands; they never talk to the bike directly.
 - `src/storage/key-store.js`: where the owner key is kept on this device, as "Stack" says.
 - `src/storage/key-export.js`: the encrypted export and import, so that the key can be moved to a new phone or kept as a backup.
+- `src/bug-report/`: the owner key read from an Android bug report, as `reverse-engineering/tools/owner_key.py` reads it: `zip.js` takes the snoop logs out of the `.zip` with the browser's own `DecompressionStream`, reading only the parts it needs; `owner-key.js` finds in them the key the bike answered `owner ok` to. Everything stays in memory on the device, and only the key is kept, once the bike accepts it. It is offered wherever `DecompressionStream` exists.
 - `src/pages/`: one module per screen, built from the elements of `ui.js`.
 - `src/i18n/`: the translation files, one per language, with the same keys.
 - `src/test-support/`: a fake Bluetooth client that behaves like the bike, for the tests.
+- `scripts/release.js`: the steps of a release that semantic-release runs, as "Build and release" says.
 - `android/`: the Android project Capacitor generates, with the app's permissions and backup rules.
 
 ## Design
@@ -79,13 +81,16 @@ The app aims to be attractive and easy, built from a few simple, reusable interf
 
 - **Android 12 and later:** `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`.
 - **Earlier versions:** `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, limited to them with `maxSdkVersion` 30, and the legacy `BLUETOOTH` and `BLUETOOTH_ADMIN`. The declarations follow the Bluetooth plugin's README.
-- **No `INTERNET` permission:** the app talks to no server.
+- **No `INTERNET` permission:** the app talks to no server. The link to the owner key guide opens in the system's browser, not in the app.
 - **Android backup is off:** `allowBackup` is false, and the data extraction rules exclude everything. The stored key never reaches a cloud backup or another device except through the app's own encrypted export.
 
 ## Build and release
 
 - The web build is served over HTTPS, since Web Bluetooth needs a secure context; `localhost` counts as one.
-- Release builds come from `./gradlew assembleRelease` in `android/`, signed with the project's own keystore, which never enters the repository.
+- Releases are made by [semantic-release](https://semantic-release.gitbook.io/) (`release.config.js`), which `.github/workflows/release.yml` runs after the checks when it is started by hand on `main` (the Actions tab, "Release", "Run workflow"). The Conventional Commits since the last release decide the version: `fix` makes a patch release, `feat` a minor one, a breaking change a major one, and other types none.
+- A release writes its version to `android/app/version.properties` (`versionName` the version, `versionCode` major × 1 000 000 + minor × 1 000 + patch, from `scripts/release.js`), builds the signed APK, commits that file as `chore(release): <version>`, tags the commit `v<version>`, and attaches `OpenAMBike-<version>.apk` to a [GitHub release](https://github.com/Rapsssito/openambike/releases). The release notes list the changes and say that the app is unofficial ([docs/safety.md](../docs/safety.md), "Name and trademark").
+- The APK is signed with the project's own key, which never enters the repository. The build reads it from `OPENAMBIKE_KEYSTORE` (the keystore's path), `OPENAMBIKE_KEYSTORE_PASSWORD`, `OPENAMBIKE_KEY_ALIAS` and `OPENAMBIKE_KEY_PASSWORD`; without them, `./gradlew assembleRelease` builds an unsigned APK. The workflow takes them from the repository's secrets `ANDROID_KEYSTORE_BASE64` (the keystore in base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`, and refuses to release without them. Every release is signed with the same key, so that each installs over the last: losing the key means that owners have to uninstall the app, and with it the stored owner key, to install a new one.
+- The Android build has nothing F-Droid refuses: no Google services, and no dependency metadata in the APK (`dependenciesInfo`).
 
 ## Libraries and licences
 

@@ -295,6 +295,51 @@ export function button(label, { fill = 'solid', color = 'primary' } = {}) {
 }
 
 /**
+ * A link to a page outside the app, opened in the system's browser.
+ * @param {string} label
+ * @param {string} href
+ * @returns {HTMLElement}
+ */
+export function externalLink(label, href) {
+    return el('a', { class: 'external-link', href, target: '_blank', rel: 'noopener noreferrer' }, [label]);
+}
+
+/**
+ * Asks the user to choose a file on the device. Nothing leaves the device: the file is only read by the app.
+ * @param {string} accept file types, as the `accept` attribute of a file input takes them
+ * @returns {Promise<File | null>} null if the user cancelled
+ */
+export function pickFile(accept) {
+    return new Promise((resolve) => {
+        const input = /** @type {HTMLInputElement} */ (el('input', { type: 'file', accept }));
+        input.addEventListener('change', () => resolve(input.files?.[0] ?? null));
+        input.addEventListener('cancel', () => resolve(null));
+        input.click();
+    });
+}
+
+/**
+ * Asks the user to choose one option among a few.
+ * @template {string} T
+ * @param {{ header: string, message: string, options: { value: T, label: string }[], confirm: string }} options
+ * @returns {Promise<T | null>} null if the user cancelled
+ */
+export async function chooseOne({ header, message, options, confirm }) {
+    const alert = await alertController.create({
+        header,
+        message,
+        inputs: options.map(({ value, label }, index) => ({ type: 'radio', label, value, checked: index === 0 })),
+        buttons: [
+            { text: t('common.cancel'), role: 'cancel' },
+            { text: confirm, role: 'confirm' },
+        ],
+    });
+    await alert.present();
+    const { role, data } = await alert.onDidDismiss();
+    return role === 'confirm' ? /** @type {{ values: T }} */ (data).values : null;
+}
+
+/**
  * The value of an Ionic input or textarea.
  * @param {HTMLElement} input
  * @returns {string}

@@ -2,6 +2,15 @@
     "name": "@openambike/app",
     "private": true,
     "license": "AGPL-3.0-only",
+    "homepage": "https://github.com/Rapsssito/openambike",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Rapsssito/openambike.git",
+        "directory": "app"
+    },
+    "bugs": {
+        "url": "https://github.com/Rapsssito/openambike/issues"
+    },
     "type": "module",
     "scripts": {
         "dev": "vite",
