@@ -34,6 +34,8 @@ jobs:
           cache: gradle
       - run: npm ci
       - run: npm run ci-checks
+      - name: Maven Central mirror
+        run: mkdir -p ~/.gradle/init.d && cp .github/gradle/maven-central-mirror.gradle ~/.gradle/init.d/
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

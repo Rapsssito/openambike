@@ -1,0 +1,15 @@
+// Gradle init script for the release workflow only: every project, including Capacitor's and its plugins' in
+// node_modules, also resolves from Google's mirror of Maven Central. Maven Central sometimes answers 404 to GitHub's
+// runners for files it has, and Gradle never retries a 404; the mirror holds the same files.
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+
+allprojects {
+    buildscript {
+        repositories {
+            maven { url = mirror; name = 'MavenCentralMirror' }
+        }
+    }
+    repositories {
+        maven { url = mirror; name = 'MavenCentralMirror' }
+    }
+}
