@@ -47,7 +47,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAMBIKE_KEYSTORE: ${{ runner.temp }}/release.keystore
           OPENAMBIKE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          OPENAMBIKE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          # semantic-release hides in everything it writes, the release notes too, the value of each variable whose name
+          # contains "key", "token", "password" and the like. The alias is the repository's name, so its variable has none.
+          OPENAMBIKE_SIGNING_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           OPENAMBIKE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: npx semantic-release
       - name: Forget the signing key

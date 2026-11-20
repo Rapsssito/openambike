@@ -1,6 +1,9 @@
 // semantic-release, run by hand on main through .github/workflows/release.yml. The commits since the last tag decide
 // the version (Conventional Commits: fix → patch, feat → minor, a breaking change → major); the release commits the
-// Android version file, tags it, and attaches the signed APK built from that same commit to a GitHub release.
+// Android version file and CHANGELOG.md, tags it, and attaches the signed APK built from that same commit to a GitHub
+// release.
+import { CHANGELOG_TITLE, RELEASE_BODY_TEMPLATE } from './app/scripts/release.js';
+
 const APK = 'app/android/app/build/outputs/apk/release/app-release.apk';
 
 export default {
@@ -12,7 +15,6 @@ export default {
         [
             '@semantic-release/exec',
             {
-                generateNotesCmd: 'node app/scripts/release.js notes',
                 prepareCmd: [
                     'node app/scripts/release.js version ${nextRelease.version}',
                     'npm run build --workspace=app',
@@ -21,10 +23,11 @@ export default {
                 ].join(' && '),
             },
         ],
+        ['@semantic-release/changelog', { changelogFile: 'CHANGELOG.md', changelogTitle: CHANGELOG_TITLE }],
         [
             '@semantic-release/git',
             {
-                assets: ['app/android/app/version.properties'],
+                assets: ['app/android/app/version.properties', 'CHANGELOG.md'],
                 message: 'chore(release): ${nextRelease.version} [skip ci]',
             },
         ],
@@ -32,6 +35,7 @@ export default {
             '@semantic-release/github',
             {
                 assets: [{ path: APK, name: 'OpenAMBike-${nextRelease.version}.apk', label: 'OpenAMBike (Android)' }],
+                releaseBodyTemplate: RELEASE_BODY_TEMPLATE,
                 successComment: false,
                 failComment: false,
             },

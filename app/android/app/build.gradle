@@ -29,7 +29,7 @@ android {
             if (keystoreFile) {
                 storeFile file(keystoreFile)
                 storePassword System.getenv('OPENAMBIKE_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('OPENAMBIKE_KEY_ALIAS')
+                keyAlias System.getenv('OPENAMBIKE_SIGNING_ALIAS')
                 keyPassword System.getenv('OPENAMBIKE_KEY_PASSWORD')
             }
         }

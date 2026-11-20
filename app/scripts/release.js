@@ -1,6 +1,6 @@
-// Steps of a release that semantic-release runs through @semantic-release/exec (release.config.js):
-//   node app/scripts/release.js version <version>   writes the Android version of the release
-//   node app/scripts/release.js notes               prints what every release's notes say beside the changes
+// What a release adds to semantic-release (release.config.js): the Android version, written by
+//   node app/scripts/release.js version <version>
+// through @semantic-release/exec, and the texts of the release page and of CHANGELOG.md beside the changes.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -30,20 +30,33 @@ export function versionProperties(version) {
     return `versionCode=${versionCode(version)}\nversionName=${version}\n`;
 }
 
-export const NOTES = [
-    'Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.',
+/** What every public description says (docs/safety.md, "Name and trademark"). */
+export const DISCLAIMER =
+    'Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.';
+
+/**
+ * The body of each GitHub release: its changes, then the disclaimer and how to install it. A Lodash template, which
+ * @semantic-release/github fills in.
+ */
+export const RELEASE_BODY_TEMPLATE = [
+    '<%= nextRelease.notes %>',
     '',
-    'Install `OpenAMBike-<version>.apk` on an Android phone (Android 7 or later). Every release is signed with the same key, so a new one installs over the last.',
+    '---',
+    '',
+    DISCLAIMER,
+    '',
+    'Install `OpenAMBike-<%= nextRelease.version %>.apk` on an Android phone (Android 7 or later). Every release is signed with the same key, so a new one installs over the last.',
 ].join('\n');
+
+/** The top of CHANGELOG.md, above the releases' changes, which say the disclaimer no more. */
+export const CHANGELOG_TITLE = `# Changelog\n\n${DISCLAIMER}`;
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const [command, version] = process.argv.slice(2);
     if (command === 'version' && version) {
         writeFileSync(VERSION_FILE, versionProperties(version));
-    } else if (command === 'notes') {
-        console.log(NOTES);
     } else {
-        console.error('Usage: node app/scripts/release.js version <version> | notes');
+        console.error('Usage: node app/scripts/release.js version <version>');
         process.exit(2);
     }
 }
