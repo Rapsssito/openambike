@@ -1,0 +1,3 @@
+Bug Fixes:
+
+- publish F-Droid's listing and each release's changes for it

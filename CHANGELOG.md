@@ -2,6 +2,12 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+## [1.1.1](https://github.com/Rapsssito/openambike/compare/v1.1.0...v1.1.1) (2026-11-21)
+
+### Bug Fixes
+
+* **release:** publish F-Droid's listing and each release's changes for it ([597d7aa](https://github.com/Rapsssito/openambike/commit/597d7aac4e27e8020c7a10e089749c1a6764e900))
+
 # [1.1.0](https://github.com/Rapsssito/openambike/compare/v1.0.0...v1.1.0) (2026-11-21)
 
 ### Features
