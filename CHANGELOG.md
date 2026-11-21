@@ -2,6 +2,12 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+# [1.1.0](https://github.com/Rapsssito/openambike/compare/v1.0.0...v1.1.0) (2026-11-21)
+
+### Features
+
+* **app:** auto-connect, auto-lock, rides and auto-ride, through the app's own native service ([ec95799](https://github.com/Rapsssito/openambike/commit/ec95799f1015e191408c49c87389e3a68c793e26))
+
 # 1.0.0 (2026-11-20)
 
 ### Features
