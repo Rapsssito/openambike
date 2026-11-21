@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- The debug build's name, so that it is told from the release installed beside it (build.gradle). -->
+<resources>
+    <string name="app_name">OpenAMBike Debug</string>
+    <string name="title_activity_main">OpenAMBike Debug</string>
+</resources>

@@ -29,8 +29,22 @@ export function speed(kmh, units, locale) {
  * @param {number} km
  * @param {Units} units
  * @param {string} [locale]
+ * @param {number} [decimals]
  * @returns {string}
  */
-export function distance(km, units, locale) {
-    return units === 'mi' ? `${number(km / KM_PER_MILE, 1, locale)} mi` : `${number(km, 1, locale)} km`;
+export function distance(km, units, locale, decimals = 1) {
+    return units === 'mi' ? `${number(km / KM_PER_MILE, decimals, locale)} mi` : `${number(km, decimals, locale)} km`;
+}
+
+/**
+ * A duration as hours, minutes and seconds: `1:05:09`, or `5:09` under an hour.
+ * @param {number} ms
+ * @returns {string}
+ */
+export function duration(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = String(total % 60).padStart(2, '0');
+    return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }

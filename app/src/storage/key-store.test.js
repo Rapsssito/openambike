@@ -81,4 +81,51 @@ describe('Android store', () => {
         await store.remove();
         expect(await store.load()).toBeNull();
     });
+
+    /** A secure storage in memory, and the plugin's copy for the backup. */
+    const stores = () => {
+        /** @type {Map<string, string>} */
+        const map = new Map();
+        const storage = {
+            getItem: async (/** @type {string} */ name) => map.get(name) ?? null,
+            setItem: async (/** @type {string} */ name, /** @type {string} */ value) => {
+                map.set(name, value);
+            },
+            removeItem: async (/** @type {string} */ name) => {
+                map.delete(name);
+            },
+        };
+        const backup = {
+            copy: /** @type {string | undefined} */ (undefined),
+            getKeyBackup: async () => (backup.copy ? { key: backup.copy } : {}),
+            setKeyBackup: async (/** @type {{ key?: string }} */ { key }) => {
+                backup.copy = key;
+            },
+        };
+        return { map, storage, backup };
+    };
+
+    test('the key saved gets a copy for the backup, and forgetting it removes both', async () => {
+        const { storage, backup } = stores();
+        const store = createNativeKeyStore(storage, backup);
+        await store.save(KEY);
+        expect(backup.copy).toBe(KEY);
+        await store.remove();
+        expect(backup.copy).toBeUndefined();
+        expect(await store.load()).toBeNull();
+    });
+
+    test('a phone restored from a backup takes the key from its copy into the Keystore', async () => {
+        const { map, storage, backup } = stores();
+        backup.copy = KEY;
+        expect(await createNativeKeyStore(storage, backup).load()).toBe(KEY);
+        expect(map.get('owner-key')).toBe(KEY);
+    });
+
+    test('a key saved before the copy existed gets one', async () => {
+        const { map, storage, backup } = stores();
+        map.set('owner-key', KEY);
+        expect(await createNativeKeyStore(storage, backup).load()).toBe(KEY);
+        expect(backup.copy).toBe(KEY);
+    });
 });

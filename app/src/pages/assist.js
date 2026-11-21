@@ -1,18 +1,21 @@
-// The assist tab: assist speed and assist amount of each mode, each written only within the bike's limits and only
-// when the rider saves it.
-import { flash, speedometer } from 'ionicons/icons';
+// The assist tab: assist speed and assist amount of the two modes, written together, only within the bike's limits and
+// only when the rider saves them, with an undo and a save button under them. Each mode's badge says how its sliders
+// stand against the bike, the only source of what is saved: "Saved" once the bike returns what was written; a slider
+// moved shows the bike's value beside its own, struck through.
+import { arrowUndo, flash, save as saveIcon, speedometer } from 'ionicons/icons';
 
 import { ASSIST_LIMITS } from '../ble/protocol.js';
 import { t } from '../i18n/i18n.js';
 import { KM_PER_MILE, number } from './format.js';
-import { button, card, el, icon, page, send, showToast, whileBusy } from './ui.js';
+import { button, card, el, icon, page, send, showToast } from './ui.js';
 
 /** @typedef {import('../session.js').Session} Session */
 /** @typedef {import('../session.js').BikeState} BikeState */
 /** @typedef {import('../preferences.js').Units} Units */
 
 /**
- * A labelled slider with its value large above it and its limits under it.
+ * A labelled slider with its value large above it, its limits under it, and, once moved away from the bike's value,
+ * that value beside its own, small and struck through.
  * @param {{ label: string, iconName: string, min: number, max: number, format: (value: number) => string, onInput: () => void }} options
  */
 function slider({ label, iconName, min, max, format, onInput }) {
@@ -26,10 +29,12 @@ function slider({ label, iconName, min, max, format, onInput }) {
         show();
         onInput();
     });
+    const onBike = el('s', { class: 'slider-bike' });
+    onBike.hidden = true;
     const element = el('div', { class: 'slider' }, [
         el('div', { class: 'slider-head' }, [
             el('span', { class: 'slider-label' }, [icon(iconName), ' ', label]),
-            value,
+            el('span', { class: 'slider-values' }, [onBike, value]),
         ]),
         range,
         el('div', { class: 'slider-limits' }, [el('span', {}, [format(min)]), el('span', {}, [format(max)])]),
@@ -43,6 +48,16 @@ function slider({ label, iconName, min, max, format, onInput }) {
             show();
         },
         show,
+        /**
+         * Shows the bike's value under the slider while the slider is away from it.
+         * @param {number | null} bike null while not known
+         */
+        showBike(bike) {
+            onBike.hidden = bike === null || bike === read();
+            if (bike === null) return;
+            onBike.textContent = format(bike);
+            onBike.setAttribute('aria-label', t('assist.onBike', { value: format(bike) }));
+        },
     };
 }
 
@@ -59,16 +74,18 @@ export function assistPage(session, units, status) {
     const formatSpeed = (kmh) =>
         units() === 'mi' ? `${kmh} km/h · ${number(kmh / KM_PER_MILE, 1)} mph` : `${kmh} km/h`;
 
+    /** @typedef {import('../ble/protocol.js').AssistSetting} AssistSetting */
+
     /** @param {1 | 2} mode */
     function modeEditor(mode) {
-        const badge = el('span', { class: 'mode-badge' });
+        const badge = el('span', { class: 'mode-badge', role: 'status' });
         const speedSlider = slider({
             label: t('assist.speed'),
             iconName: speedometer,
             min: minSpeedKmh,
             max: maxSpeedKmh,
             format: formatSpeed,
-            onInput: () => showChanged(),
+            onInput: () => showState(),
         });
         const amountSlider = slider({
             label: t('assist.amount'),
@@ -76,27 +93,8 @@ export function assistPage(session, units, status) {
             min: minPercent,
             max: maxPercent,
             format: (percent) => `${percent} %`,
-            onInput: () => showChanged(),
+            onInput: () => showState(),
         });
-        const save = button(t('assist.save', { n: mode }));
-        /** The values on the bike, to tell whether the sliders changed them. */
-        let onBike = { speedKmh: -1, amountPercent: -1 };
-
-        const changed = () => speedSlider.read() !== onBike.speedKmh || amountSlider.read() !== onBike.amountPercent;
-        const showChanged = () => {
-            const dirty = changed();
-            save.toggleAttribute('disabled', !dirty);
-            badge.textContent = dirty ? t('assist.unsaved') : t('assist.onBike');
-            badge.classList.toggle('dirty', dirty);
-        };
-
-        save.addEventListener('click', async () => {
-            const setting = { speedKmh: speedSlider.read(), amountPercent: amountSlider.read() };
-            const sent = await whileBusy(save, () => send(() => session.changeAssistMode(mode, setting)));
-            if (sent) await showToast(t('assist.saved', { n: mode }));
-            showChanged();
-        });
-
         const element = card(
             [
                 el('div', { class: 'mode-head' }, [
@@ -105,41 +103,108 @@ export function assistPage(session, units, status) {
                 ]),
                 speedSlider.element,
                 amountSlider.element,
-                el('div', { class: 'mode-actions' }, [save]),
             ],
             'mode-card'
         );
-
-        /** @param {import('../ble/protocol.js').AssistLevel} level */
-        const render = (level) => {
-            const next = { speedKmh: Math.round(level.speedKmh), amountPercent: level.powerPercent };
-            const wasDirty = onBike.speedKmh !== -1 && changed();
-            onBike = next;
-            if (!wasDirty) {
-                speedSlider.set(next.speedKmh);
-                amountSlider.set(next.amountPercent);
-            }
-            speedSlider.show();
-            showChanged();
+        return {
+            element,
+            /** @returns {AssistSetting} */
+            read: () => ({ speedKmh: speedSlider.read(), amountPercent: amountSlider.read() }),
+            /** @param {AssistSetting} setting */
+            set(setting) {
+                speedSlider.set(setting.speedKmh);
+                amountSlider.set(setting.amountPercent);
+            },
+            /**
+             * Shows how the mode stands against the bike: its badge, and the bike's values beside the sliders moved.
+             * @param {AssistSetting | null} bike
+             * @param {boolean} saving
+             */
+            showState(bike, saving) {
+                const dirty =
+                    bike !== null &&
+                    (speedSlider.read() !== bike.speedKmh || amountSlider.read() !== bike.amountPercent);
+                badge.textContent = t(saving ? 'assist.saving' : dirty ? 'assist.unsaved' : 'assist.inSync');
+                badge.classList.toggle('dirty', dirty || saving);
+                speedSlider.showBike(bike?.speedKmh ?? null);
+                amountSlider.showBike(bike?.amountPercent ?? null);
+            },
+            /** Shows the speed again in the units of now. */
+            show: () => speedSlider.show(),
         };
-        return { element, render };
     }
 
-    const mode1 = modeEditor(1);
-    const mode2 = modeEditor(2);
+    const editors = [modeEditor(1), modeEditor(2)];
+    const save = button(t('assist.save'));
+    save.prepend(icon(saveIcon, { slot: 'start' }));
+    const undo = button(t('assist.undo'), { fill: 'outline' });
+    undo.prepend(icon(arrowUndo, { slot: 'start' }));
+    /** The two modes on the bike, to tell whether the sliders changed them; null until read. */
+    /** @type {[AssistSetting, AssistSetting] | null} */
+    let onBike = null;
+    let saving = false;
+
+    /** @param {AssistSetting} a @param {AssistSetting} b */
+    const same = (a, b) => a.speedKmh === b.speedKmh && a.amountPercent === b.amountPercent;
+    const changed = () => {
+        const bike = onBike;
+        return bike !== null && editors.some((editor, i) => !same(editor.read(), bike[i]));
+    };
+    function showState() {
+        const dirty = changed();
+        save.toggleAttribute('disabled', !dirty || saving);
+        undo.toggleAttribute('disabled', !dirty || saving);
+        editors.forEach((editor, i) => editor.showState(onBike?.[i] ?? null, saving));
+    }
+
+    save.addEventListener('click', async () => {
+        const [mode1, mode2] = editors.map((editor) => editor.read());
+        saving = true;
+        showState();
+        try {
+            const sent = await send(() => session.changeAssistLevels(mode1, mode2));
+            // No message when the bike took them: the badge says "Saved", and only once the bike returned them.
+            const took = onBike !== null && same(onBike[0], mode1) && same(onBike[1], mode2);
+            if (sent && !took) await showToast(t('assist.notTaken'), 'error');
+        } finally {
+            saving = false;
+            showState();
+        }
+    });
+    undo.addEventListener('click', () => {
+        const bike = onBike;
+        if (!bike) return;
+        editors.forEach((editor, i) => editor.set(bike[i]));
+        showState();
+    });
 
     /** @param {BikeState} state */
     const render = (state) => {
         if (!state.assistLevels) return;
-        mode1.render(state.assistLevels.mode1);
-        mode2.render(state.assistLevels.mode2);
+        const { mode1, mode2 } = state.assistLevels;
+        /** @param {import('../ble/protocol.js').AssistLevel} level @returns {AssistSetting} */
+        const setting = (level) => ({ speedKmh: Math.round(level.speedKmh), amountPercent: level.powerPercent });
+        /** @type {[AssistSetting, AssistSetting]} */
+        const next = [setting(mode1), setting(mode2)];
+        // Sliders the rider moved, or is saving, stay where they are; otherwise they follow the bike.
+        const keep = saving || changed();
+        onBike = next;
+        editors.forEach((editor, i) => {
+            if (!keep) editor.set(next[i]);
+            editor.show();
+        });
+        showState();
     };
 
     const element = page(
         t('assist.title'),
         [
-            el('p', { class: 'lead' }, [t('assist.intro')]),
-            el('div', { class: 'stack' }, [mode1.element, mode2.element]),
+            el(
+                'div',
+                { class: 'stack' },
+                editors.map((editor) => editor.element)
+            ),
+            el('div', { class: 'assist-buttons' }, [undo, save]),
         ],
         status
     );

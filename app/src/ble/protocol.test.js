@@ -252,8 +252,9 @@ describe('values read or notified', () => {
         expect(() => decodeBattery(hex('fa c7 00 00 3a 00 4a'))).toThrow(RangeError);
     });
 
-    test('official-317: pack temperatures of 22.5 °C and 23.3 °C', () => {
+    test('official-317: 81 cycles, and pack temperatures of 22.5 °C and 23.3 °C', () => {
         expect(decodeBatteryExtended(hex('51 00 e1 00 e9 00 ff ff 00 00 8f 00'))).toEqual({
+            cycles: 81,
             packTemperaturesC: [22.5, 23.3],
         });
     });

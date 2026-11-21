@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Before Android 12: only the rides, their summaries, the owner key's copy for the backup and the automatic options
+     are backed up, and to the cloud only when the backup is encrypted end to end. Everything else stays out,
+     auto-connect's settings among them: an include leaves out whatever it does not name. -->
+<full-backup-content>
+    <include domain="file" path="rides/" requireFlags="clientSideEncryption" />
+    <include domain="file" path="ride-summaries/" requireFlags="clientSideEncryption" />
+    <include domain="sharedpref" path="auto-connect.xml" requireFlags="clientSideEncryption" />
+    <include domain="sharedpref" path="owner-key-backup.xml" requireFlags="clientSideEncryption" />
+</full-backup-content>

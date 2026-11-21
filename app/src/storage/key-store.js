@@ -1,5 +1,5 @@
 // Where the owner key is kept on this device, so that it is typed once. On Android, in the Android Keystore through the
-// secure storage plugin. In a browser, encrypted with a non-extractable AES-GCM key that only this origin can use:
+// secure storage plugin, with a copy for Android's backup, since the Keystore's key never leaves the phone. In a browser, encrypted with a non-extractable AES-GCM key that only this origin can use:
 // the browser's storage never holds the owner key as plain text, and the encryption key cannot be read out of it.
 import { isOwnerKey } from '../ble/protocol.js';
 
@@ -22,6 +22,13 @@ const OWNER_KEY_ITEM = 'owner-key';
  */
 
 /**
+ * The owner key's copy for Android's backup, kept by the app's own plugin outside the Keystore.
+ * @typedef {object} KeyBackup
+ * @property {() => Promise<{ key?: string }>} getKeyBackup
+ * @property {(options: { key?: string }) => Promise<void>} setKeyBackup without `key`, removes the copy
+ */
+
+/**
  * @param {string} key
  */
 function checkKey(key) {
@@ -29,22 +36,35 @@ function checkKey(key) {
 }
 
 /**
- * The Android store, in the Android Keystore.
+ * The Android store, in the Android Keystore, with a copy for Android's backup: when the Keystore holds no key, as on a
+ * phone restored from a backup, the copy is saved in the Keystore again; a key saved before the copy existed gets one.
  * @param {SecureStorageLike} storage
+ * @param {KeyBackup} [backup]
  * @returns {KeyStore}
  */
-export function createNativeKeyStore(storage) {
+export function createNativeKeyStore(storage, backup) {
     return {
         async load() {
-            const key = await storage.getItem(OWNER_KEY_ITEM);
-            return key && isOwnerKey(key) ? key : null;
+            const kept = await storage.getItem(OWNER_KEY_ITEM).catch(() => null);
+            const key = kept && isOwnerKey(kept) ? kept : null;
+            if (!backup) return key;
+            const copy = (await backup.getKeyBackup().catch(() => ({ key: undefined }))).key;
+            if (key) {
+                if (copy !== key) await backup.setKeyBackup({ key }).catch(() => undefined);
+                return key;
+            }
+            if (!copy || !isOwnerKey(copy)) return null;
+            await storage.setItem(OWNER_KEY_ITEM, copy).catch(() => undefined);
+            return copy;
         },
         async save(key) {
             checkKey(key);
             await storage.setItem(OWNER_KEY_ITEM, key);
+            await backup?.setKeyBackup({ key });
         },
         async remove() {
             await storage.removeItem(OWNER_KEY_ITEM);
+            await backup?.setKeyBackup({});
         },
     };
 }

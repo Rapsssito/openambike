@@ -1,0 +1,351 @@
+package org.openambike.app.link;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.Before;
+import org.junit.Test;
+
+public class AutoConnectTest {
+    /** Records what auto-connect asks for, as text. */
+    private static final class Recorder implements AutoConnect.Actions {
+        final List<String> done = new ArrayList<>();
+
+        @Override
+        public void scan(boolean fast) {
+            done.add(fast ? "scan fast" : "scan slow");
+        }
+
+        @Override
+        public void stopScan() {
+            done.add("stop scan");
+        }
+
+        @Override
+        public void connect() {
+            done.add("connect");
+        }
+
+        @Override
+        public void readRssi() {}
+
+        @Override
+        public void lock() {
+            done.add("lock");
+        }
+
+        @Override
+        public void unlock() {
+            done.add("unlock");
+        }
+
+        @Override
+        public void disconnect() {
+            done.add("disconnect");
+        }
+
+        @Override
+        public void status(AutoConnect.Status status) {}
+
+        @Override
+        public void alert(AutoConnect.Alert alert) {
+            done.add("alert " + alert);
+        }
+
+        boolean did(String action) {
+            return done.contains(action);
+        }
+    }
+
+    private Recorder actions;
+    private AutoConnect.Settings settings;
+    private AutoConnect auto;
+    private long now;
+
+    @Before
+    public void setUp() {
+        actions = new Recorder();
+        settings = new AutoConnect.Settings();
+        settings.autoLock = true;
+        auto = new AutoConnect(actions, settings);
+        now = 1_000_000;
+    }
+
+    /** Hears the bike at {@code rssi} every half second for {@code ms}, ticking as the service does. */
+    private void hear(int rssi, long ms) {
+        for (long end = now + ms; now < end; now += 500) {
+            auto.heard(rssi, now);
+            auto.tick(now);
+        }
+    }
+
+    /** Reads the connection's signal at {@code rssi} every half second for {@code ms}. */
+    private void signal(int rssi, long ms) {
+        for (long end = now + ms; now < end; now += 500) {
+            auto.rssi(rssi, now);
+            auto.tick(now);
+        }
+    }
+
+    private void connectedInBackground() {
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.linkUp(now);
+        assertEquals(AutoConnect.State.CONNECTED, auto.state());
+    }
+
+    @Test
+    public void inTheBackgroundItLooksSlowlyThenFastNearTheBikeThenConnects() {
+        auto.start(now);
+        assertEquals(List.of("scan slow"), actions.done);
+        hear(-65, 9_000);
+        assertTrue(actions.did("scan fast"));
+        assertFalse(actions.did("connect"));
+        hear(-65, 1_500);
+        assertTrue(actions.did("connect"));
+        assertEquals(AutoConnect.State.CONNECTING, auto.state());
+    }
+
+    @Test
+    public void aBikeHeardOnlyFarAwayIsNotConnected() {
+        auto.start(now);
+        hear(-80, 60_000);
+        assertFalse(actions.did("scan fast"));
+        assertFalse(actions.did("connect"));
+    }
+
+    @Test
+    public void aBikeNearForAMomentOnlyIsNotConnectedAndTheScanSlowsDownAgain() {
+        auto.start(now);
+        hear(-65, 1_000);
+        hear(-80, 20_000);
+        assertFalse(actions.did("connect"));
+        assertEquals(AutoConnect.State.IDLE, auto.state());
+    }
+
+    @Test
+    public void withTheAppOnScreenItStandsAside() {
+        auto.setForeground(true, now);
+        auto.start(now);
+        hear(-60, 30_000);
+        assertTrue(actions.done.isEmpty());
+        assertEquals(AutoConnect.State.APP, auto.state());
+    }
+
+    @Test
+    public void walkingAwayLocksThenDisconnects() {
+        connectedInBackground();
+        auto.lockState(false);
+        signal(-60, 30_000);
+        signal(-90, 5_500);
+        assertEquals(List.of("lock"), actions.done.subList(actions.done.size() - 1, actions.done.size()));
+        auto.lockDone(true);
+        assertTrue(actions.did("disconnect"));
+        auto.linkDown(now);
+        assertEquals(AutoConnect.State.IDLE, auto.state());
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+    }
+
+    @Test
+    public void aBikeAlreadyLockedIsNotLockedAgain() {
+        connectedInBackground();
+        auto.lockState(true);
+        signal(-60, 30_000);
+        signal(-90, 5_500);
+        assertFalse(actions.did("lock"));
+        assertTrue(actions.did("disconnect"));
+    }
+
+    @Test
+    public void withoutAutoLockWalkingAwayOnlyDisconnects() {
+        settings.autoLock = false;
+        connectedInBackground();
+        signal(-60, 30_000);
+        signal(-90, 5_500);
+        assertFalse(actions.did("lock"));
+        assertTrue(actions.did("disconnect"));
+    }
+
+    @Test
+    public void itNeverLocksWhileTheBikeMovedInTheLast30Seconds() {
+        connectedInBackground();
+        signal(-60, 31_000);
+        auto.moved(now);
+        signal(-90, 20_000);
+        assertFalse(actions.did("lock"));
+        signal(-90, 11_000);
+        assertTrue(actions.did("lock"));
+    }
+
+    @Test
+    public void aWallForAMomentDoesNotLock() {
+        connectedInBackground();
+        signal(-60, 31_000);
+        signal(-80, 60_000);
+        assertFalse(actions.did("lock"));
+        assertFalse(actions.did("disconnect"));
+    }
+
+    @Test
+    public void parkedNearFor15MinutesItLocksDisconnectsAndPausesUntilResumed() {
+        connectedInBackground();
+        signal(-60, 15 * 60_000 + 1_000);
+        assertTrue(actions.did("lock"));
+        auto.lockDone(true);
+        auto.linkDown(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+        assertTrue(actions.did("alert PAUSED_PARKED"));
+        int before = actions.done.size();
+        hear(-60, 30_000);
+        assertEquals(before, actions.done.size());
+        auto.resume(now);
+        assertEquals(AutoConnect.State.IDLE, auto.state());
+    }
+
+    @Test
+    public void aPauseForStandingNearEndsOnceTheRiderHasLeftForAMinute() {
+        connectedInBackground();
+        signal(-60, 15 * 60_000 + 1_000);
+        auto.lockDone(true);
+        auto.linkDown(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+        assertTrue(actions.did("scan slow"));
+        // Still near, or near again within the minute: the pause goes on.
+        hear(-70, 50_000);
+        hear(-90, 50_000);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+        // Then not heard near for a minute: it looks for the bike again.
+        for (long end = now + 61_000; now < end; now += 500) auto.tick(now);
+        assertEquals(AutoConnect.State.IDLE, auto.state());
+    }
+
+    @Test
+    public void aPauseOfTheRiderDoesNotEndByItself() {
+        connectedInBackground();
+        auto.userDisconnected();
+        auto.linkDown(now);
+        for (long end = now + 10 * 60_000; now < end; now += 500) auto.tick(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+    }
+
+    @Test
+    public void aLinkLostBeforeLockingWarnsThatTheBikeMayBeUnlocked() {
+        connectedInBackground();
+        auto.lockState(false);
+        auto.linkDown(now);
+        assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
+        assertEquals(AutoConnect.State.IDLE, auto.state());
+    }
+
+    @Test
+    public void aFailedLockWarnsAndStillDisconnects() {
+        connectedInBackground();
+        signal(-60, 31_000);
+        signal(-90, 5_500);
+        auto.lockDone(false);
+        assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
+        assertTrue(actions.did("disconnect"));
+    }
+
+    @Test
+    public void theRiderDisconnectingPausesItUntilResumed() {
+        connectedInBackground();
+        auto.userDisconnected();
+        auto.linkDown(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        auto.resume(now);
+        assertEquals(AutoConnect.State.IDLE, auto.state());
+    }
+
+    @Test
+    public void leavingTheAppTakesOverItsConnection() {
+        auto.setForeground(true, now);
+        auto.start(now);
+        auto.linkUp(now);
+        auto.setForeground(false, now);
+        assertEquals(AutoConnect.State.CONNECTED, auto.state());
+        auto.lockState(false);
+        signal(-90, 31_000);
+        assertTrue(actions.did("lock"));
+    }
+
+    @Test
+    public void withAutoUnlockAConnectionMadeBecauseThePhoneCameNearUnlocksALockedBike() {
+        settings.autoUnlock = true;
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertTrue(actions.did("unlock"));
+    }
+
+    @Test
+    public void aLockByHandHoldsAgainstAutoUnlockUntilUnlockedByHand() {
+        settings.autoUnlock = true;
+        auto.setLockHeld(true);
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertFalse(actions.did("unlock"));
+
+        auto.setLockHeld(false);
+        auto.linkDown(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertTrue(actions.did("unlock"));
+    }
+
+    @Test
+    public void withoutAutoUnlockOrAutoLockNothingUnlocks() {
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertFalse(actions.did("unlock"));
+
+        setUp();
+        settings.autoLock = false;
+        settings.autoUnlock = true;
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertFalse(actions.did("unlock"));
+    }
+
+    @Test
+    public void aBikeAlreadyUnlockedIsNotUnlockedAgain() {
+        settings.autoUnlock = true;
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(false);
+        auto.linkUp(now);
+        assertFalse(actions.did("unlock"));
+    }
+
+    @Test
+    public void theAppConnectingOrBeingLeftNeverUnlocks() {
+        settings.autoUnlock = true;
+        auto.setForeground(true, now);
+        auto.start(now);
+        auto.lockState(true);
+        auto.linkUp(now);
+        auto.setForeground(false, now);
+        assertEquals(AutoConnect.State.CONNECTED, auto.state());
+        assertFalse(actions.did("unlock"));
+    }
+
+    @Test
+    public void openingTheAppStopsTheScan() {
+        auto.start(now);
+        auto.setForeground(true, now);
+        assertTrue(actions.did("stop scan"));
+        assertEquals(AutoConnect.State.APP, auto.state());
+    }
+}

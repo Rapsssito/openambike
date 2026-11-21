@@ -24,7 +24,6 @@ import {
     encodeSwitch,
     encodeTorqueSensorCalibration,
     isOwnerOk,
-    replaceAssistMode,
     NAME_PREFIX,
     SERVICE,
 } from './protocol.js';
@@ -38,6 +37,8 @@ import {
  * @typedef {object} BleClientLike
  * @property {(options?: { androidNeverForLocation?: boolean }) => Promise<void>} initialize
  * @property {(options: { namePrefix?: string, optionalServices?: string[] }) => Promise<{ deviceId: string, name?: string }>} requestDevice
+ * @property {(options: { namePrefix?: string, scanMode?: number }, callback: (result: ScanResult) => void) => Promise<void>} requestLEScan
+ * @property {() => Promise<void>} stopLEScan
  * @property {(deviceId: string, onDisconnect?: (deviceId: string) => void) => Promise<void>} connect
  * @property {(deviceId: string) => Promise<void>} disconnect
  * @property {(deviceId: string) => Promise<void>} createBond
@@ -48,11 +49,39 @@ import {
  * @property {(deviceId: string, service: string, characteristic: string) => Promise<void>} stopNotifications
  */
 
+/**
+ * A device seen by a scan, as the plugin reports it.
+ * @typedef {object} ScanResult
+ * @property {{ deviceId: string, name?: string }} device
+ * @property {string} [localName]
+ * @property {number} [rssi]
+ */
+
+/**
+ * A bike found by a scan.
+ * @typedef {object} FoundBike
+ * @property {string} deviceId
+ * @property {string} name
+ * @property {number | null} rssi signal strength in dBm, higher is nearer
+ */
+
+/** Android's scan modes, as the Bluetooth plugins name them: fewer results and less battery, or more of both. */
+export const SCAN_MODE = { balanced: 1, lowLatency: 2 };
+
+/** How long the app looks for bikes before it stops scanning. */
+export const SCAN_TIMEOUT_MS = 15000;
+
 /** How long the bike has to answer the owner key. */
 export const AUTH_TIMEOUT_MS = 5000;
 
 /** How long the bike has to send its whole IoT state. */
 export const IOT_STATE_TIMEOUT_MS = 10000;
+
+/**
+ * After writing the assist levels, they are read back until the bike returns what was written: this many times more,
+ * this far apart, about a second in all, in case it takes a moment to store them.
+ */
+export const ASSIST_CONFIRM = Object.freeze({ reads: 4, everyMs: 250 });
 
 /** Thrown when the bike does not accept the owner key. */
 export class AuthenticationError extends Error {}
@@ -80,12 +109,44 @@ function viewOf(bytes) {
  * @returns {Promise<Bike>}
  */
 export async function chooseBike(client, platform) {
+    // In a browser, Web Bluetooth only lets a page reach a device the user picked in the browser's own chooser.
     await client.initialize({ androidNeverForLocation: true });
     const device = await client.requestDevice({
         namePrefix: NAME_PREFIX,
         optionalServices: [SERVICE.auth, SERVICE.bike, SERVICE.owner],
     });
     return new Bike(client, device.deviceId, platform);
+}
+
+/**
+ * Looks for bikes nearby, in the app's own list rather than the system's chooser: Android only. The bike gives its name
+ * only in its scan response (docs/protocol.md, "Advertising"), which Android's scans ask for.
+ * @param {BleClientLike} client
+ * @param {(bike: FoundBike) => void} onFound called once per bike, then again when its signal changes
+ * @param {{ scanMode?: number }} [options] one of `SCAN_MODE`; balanced unless said
+ * @returns {Promise<() => Promise<void>>} stops the scan
+ */
+export async function scanForBikes(client, onFound, { scanMode = SCAN_MODE.balanced } = {}) {
+    await client.initialize({ androidNeverForLocation: true });
+    await client.requestLEScan({ namePrefix: NAME_PREFIX, scanMode }, (result) =>
+        onFound({
+            deviceId: result.device.deviceId,
+            name: result.localName ?? result.device.name ?? NAME_PREFIX,
+            rssi: result.rssi ?? null,
+        })
+    );
+    return () => client.stopLEScan();
+}
+
+/**
+ * A bike found before, reached again by its device identifier, with no scan: Android only.
+ * @param {BleClientLike} client
+ * @param {string} deviceId
+ * @returns {Promise<Bike>}
+ */
+export async function bikeById(client, deviceId) {
+    await client.initialize({ androidNeverForLocation: true });
+    return new Bike(client, deviceId, { native: true });
 }
 
 export class Bike {
@@ -332,16 +393,23 @@ export class Bike {
     }
 
     /**
-     * Changes one mode's assist speed and amount: reads the current levels, keeps the other mode's bytes as read,
-     * writes the 6 bytes, and returns the levels read back.
-     * @param {1 | 2} mode
-     * @param {AssistSetting} setting
+     * Changes both modes' assist speed and amount in one write of the 6 bytes, and returns the levels read back, read
+     * again for about a second while the bike returns other bytes than those written. Whether the bike took them is
+     * for the caller to compare.
+     * @param {AssistSetting} mode1
+     * @param {AssistSetting} mode2
      * @returns {Promise<{ mode1: AssistLevel, mode2: AssistLevel }>}
      */
-    async changeAssistMode(mode, setting) {
-        const current = await this.read(CHARACTERISTIC.assistLevels);
-        await this.write(CHARACTERISTIC.assistLevels, replaceAssistMode(current, mode, setting));
-        return this.readAssistLevels();
+    async changeAssistLevels(mode1, mode2) {
+        const written = encodeAssistLevels(mode1, mode2);
+        await this.write(CHARACTERISTIC.assistLevels, written);
+        const took = (/** @type {Uint8Array} */ read) => written.every((byte, i) => read[i] === byte);
+        let read = await this.read(CHARACTERISTIC.assistLevels);
+        for (let i = 0; i < ASSIST_CONFIRM.reads && !took(read); i++) {
+            await new Promise((resolve) => setTimeout(resolve, ASSIST_CONFIRM.everyMs));
+            read = await this.read(CHARACTERISTIC.assistLevels);
+        }
+        return decodeAssistLevels(read);
     }
 
     /** Restarts the bike's firmware; it disconnects and keeps its settings. */

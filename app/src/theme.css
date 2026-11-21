@@ -52,6 +52,11 @@
 
 /* Layout. */
 
+/* Hidden stays hidden, whatever display an element's own class gives it. */
+[hidden] {
+    display: none !important;
+}
+
 .page-body {
     padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px));
     max-width: 640px;
@@ -111,9 +116,9 @@
 
 .gauge {
     position: relative;
-    width: 168px;
-    height: 168px;
-    flex: none;
+    width: 100%;
+    max-width: 168px;
+    aspect-ratio: 1;
 }
 
 .gauge svg {
@@ -162,19 +167,31 @@
     color: var(--app-muted);
 }
 
-/* Hero: the gauge with the figures beside it. */
+/* Hero: the bike tab's first card, its view chosen at the top, then two halves: the large figure, and the figures
+   beside it. Both views share one grid cell, so that the card keeps the height of the taller. */
 
 .hero {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+    display: grid;
     padding: 16px;
 }
 
+.hero-view {
+    grid-area: 1 / 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    justify-items: center;
+    gap: 16px;
+}
+
+.hero-view.inactive {
+    visibility: hidden;
+}
+
 .hero-figures {
-    flex: 1;
     display: grid;
     gap: 14px;
+    width: 100%;
     min-width: 0;
 }
 
@@ -209,9 +226,79 @@
     text-overflow: ellipsis;
 }
 
+/* Readout: a large figure with its unit under it, in the gauge's place. */
+
+.readout {
+    min-width: 0;
+    text-align: center;
+}
+
+.readout-value {
+    font-size: 3.2rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+}
+
+.readout-unit {
+    margin-top: 6px;
+    font-size: 0.9rem;
+    color: var(--app-muted);
+}
+
+/* Meter: an icon and its value on one line, over a horizontal bar as wide as the meter. */
+
+.meter {
+    min-width: 0;
+}
+
+.meter-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.meter-icon {
+    flex: none;
+    font-size: 20px;
+    color: var(--app-muted);
+}
+
+.meter-value {
+    font-size: 1.15rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.meter-track {
+    display: block;
+    height: 8px;
+    margin-top: 4px;
+    border-radius: 4px;
+    background: var(--app-surface-2);
+    overflow: hidden;
+}
+
+.meter-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 4px;
+    background: var(--ion-color-primary);
+    transition: width 0.3s ease;
+}
+
+.meter.low .meter-fill {
+    background: var(--app-warning);
+}
+
 /* Toggle tile. */
 
 .tile {
+    position: relative;
     appearance: none;
     border: none;
     font: inherit;
@@ -268,10 +355,6 @@
 .tile.on .tile-state {
     color: inherit;
     opacity: 0.9;
-}
-
-.tile.busy {
-    opacity: 0.7;
 }
 
 .tile:disabled {
@@ -427,23 +510,42 @@
     padding: 8px 16px 16px;
 }
 
+/* Beside a slider's value once moved, the bike's value, small and struck through. */
+.slider-values {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.slider-bike {
+    font-size: 0.9rem;
+    color: var(--app-warning);
+}
+
+/* The assist tab's undo and save, for both modes, under them, half the width each. */
+.assist-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.assist-buttons ion-button {
+    margin: 0;
+}
+
 /* Connect screen. */
 
 .brand {
     text-align: center;
-    padding: 40px 0 8px;
+    padding: 20px 0 4px;
 }
 
 .brand-mark {
-    width: 72px;
-    height: 72px;
-    border-radius: 22px;
-    margin: 0 auto 16px;
-    display: grid;
-    place-items: center;
-    background: var(--ion-color-primary);
-    color: var(--ion-color-primary-contrast);
-    font-size: 38px;
+    display: block;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 12px;
 }
 
 .brand-name {
@@ -456,29 +558,18 @@
 .status-message {
     text-align: center;
     color: var(--app-muted);
-    margin: 4px 16px 24px;
+    margin: 4px 16px 20px;
     min-height: 1.4em;
 }
 
-.status-message.error {
-    color: var(--app-danger);
+.status-message.failed {
+    color: var(--ion-color-danger);
+    font-weight: 600;
 }
 
 .key-field ion-input {
     --padding-start: 16px;
     --padding-end: 8px;
-}
-
-.key-saved {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-}
-
-.key-saved ion-icon {
-    font-size: 22px;
-    color: var(--ion-color-primary);
 }
 
 .disclaimer {
@@ -552,8 +643,10 @@
 
 @media (prefers-reduced-motion: reduce) {
     .status-badge.pulse .dot,
+    .gauge-flow,
     .gauge-fill,
     .tile,
+    .meter-fill,
     .choice-option {
         animation: none;
         transition: none;
@@ -573,6 +666,60 @@ ion-toast.toast-success::part(icon) {
 ion-toast.toast-error {
     --background: var(--app-danger);
     --color: #ffffff;
+}
+
+/* Waiting for the bike: the control keeps the bike's last value, cannot be pressed, and shows a spinner. */
+
+.pending-spinner {
+    display: none;
+    width: 18px;
+    height: 18px;
+    color: var(--ion-color-primary);
+}
+
+[aria-busy='true'] > .pending-spinner {
+    display: inline-block;
+}
+
+.tile .pending-spinner {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 22px;
+    height: 22px;
+}
+
+.tile.on .pending-spinner {
+    color: inherit;
+}
+
+.tile[aria-busy='true'],
+.row.action[aria-busy='true'] {
+    cursor: progress;
+    opacity: 1;
+}
+
+.choice-option .pending-spinner {
+    width: 16px;
+    height: 16px;
+    margin-inline-start: 6px;
+    vertical-align: middle;
+}
+
+.choice-option:disabled {
+    cursor: default;
+}
+
+.choice-option:disabled:not([aria-busy='true']) {
+    opacity: 0.6;
+}
+
+.row[aria-busy='true'] > .pending-spinner {
+    flex: none;
+}
+
+.row.action[aria-busy='true'] .row-chevron {
+    display: none;
 }
 
 .button-spinner {
@@ -629,10 +776,6 @@ ion-toast.toast-error {
     color: var(--app-danger);
 }
 
-.grid-2.inner {
-    padding: 14px 16px;
-}
-
 .mode-badge {
     font-size: 0.75rem;
     font-weight: 600;
@@ -672,17 +815,14 @@ ion-toast.toast-error {
     margin-inline-end: 8px;
 }
 
-.forget {
-    display: flex;
-    justify-content: flex-end;
-    padding: 0 8px 4px;
-    border-top: 1px solid var(--app-line);
-}
-
 .connect-button {
     --border-radius: 14px;
     min-height: 52px;
     font-weight: 600;
+}
+
+.grid-2.inner {
+    padding: 14px 16px;
 }
 
 .grid-2.inner > .stat {
@@ -690,13 +830,7 @@ ion-toast.toast-error {
     box-shadow: none;
 }
 
-.key-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px 12px;
-    padding: 4px 8px 8px;
+.grid-2.inner + .row {
     border-top: 1px solid var(--app-line);
 }
 
@@ -707,4 +841,308 @@ ion-toast.toast-error {
     padding: 0 8px;
     font-size: 0.9rem;
     color: var(--ion-color-primary);
+}
+
+.row .external-link {
+    flex: 1;
+    padding: 0;
+}
+
+/* Connect screen: its headers are hidden, so the page keeps clear of the camera itself, by the same inset Ionic's
+   headers use on the other screens, and the disclaimer sits at the bottom of the screen however little is above it. */
+
+.connect-page .page-body {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-height: 100%;
+    padding-top: var(--ion-safe-area-top);
+}
+
+.connect-page .disclaimer {
+    margin-top: auto;
+    padding-top: 24px;
+}
+
+.connect-page .section .card .step {
+    border-top: 1px solid var(--app-line);
+}
+
+.connect-page .section .card .step:first-child {
+    border-top: none;
+}
+
+/* The bike tab's two views. */
+
+.card > .choice.local:first-child {
+    margin: 16px 16px 0;
+}
+
+.tile.blocked .tile-state {
+    color: var(--app-warning);
+    opacity: 1;
+}
+
+/* Gauge flow: while charging, a soft glint sweeps along the filled arc, from its start to the charge, and rests
+   between sweeps. The gauge sets where it starts and ends (pages/ui.js). */
+
+.gauge-mask {
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 10;
+}
+
+.gauge .gauge-flow {
+    display: none;
+    stroke: #ffffff;
+    stroke-width: 10;
+    stroke-linecap: butt;
+    stroke-dashoffset: var(--glint-from);
+    opacity: 0;
+}
+
+.gauge.charging .gauge-flow {
+    display: inline;
+    animation: gauge-glint 2.4s ease-in-out infinite;
+}
+
+@keyframes gauge-glint {
+    0% {
+        stroke-dashoffset: var(--glint-from);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.6;
+    }
+    60% {
+        opacity: 0.6;
+    }
+    70%,
+    100% {
+        stroke-dashoffset: var(--glint-to);
+        opacity: 0;
+    }
+}
+
+.gauge.charging .gauge-flow-icon {
+    animation: gauge-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes gauge-breathe {
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.gauge-line {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.gauge-flow-icon {
+    display: none;
+    font-size: 22px;
+    color: var(--ion-color-primary);
+}
+
+.gauge.charging .gauge-flow-icon,
+.gauge.discharging .gauge-flow-icon {
+    display: block;
+}
+
+.gauge.discharging .gauge-flow-icon {
+    color: var(--app-muted);
+}
+
+.gauge-caption:empty {
+    display: none;
+}
+
+/* While the bike reconnects: the values stay, and what would reach the bike cannot be pressed. */
+
+.offline .tile,
+.offline .choice:not(.local),
+.offline ion-toggle:not(.local),
+.offline .mode-card ion-button,
+.offline .bike-action {
+    pointer-events: none;
+    opacity: 0.45;
+}
+
+.status-badge.warning {
+    color: var(--app-warning);
+    background: rgba(232, 89, 12, 0.12);
+}
+
+.status-badge.warning .dot {
+    animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.25;
+    }
+}
+
+/* Disclosure rows and sheets. */
+
+.disclosure {
+    display: block;
+    padding: 0;
+}
+
+.disclosure summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 6px 16px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.disclosure summary::-webkit-details-marker {
+    display: none;
+}
+
+.disclosure[open] .row-chevron {
+    transform: rotate(90deg);
+}
+
+.row-detail {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--app-muted);
+}
+
+.disclosure-text {
+    margin: 0;
+    padding: 0 16px 16px;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--app-muted);
+}
+
+.sheet-body {
+    padding-top: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gauge.charging .gauge-flow,
+    .gauge.charging .gauge-flow-icon,
+    .status-badge.warning .dot {
+        animation: none;
+    }
+}
+
+/* The (i) beside a setting, which explains it. */
+
+/* A setting this platform cannot use, greyed out: pressing it says why. */
+.row.unavailable .row-icon,
+.row.unavailable .row-label {
+    opacity: 0.5;
+}
+
+.row.unavailable {
+    cursor: pointer;
+}
+
+.row-label.with-info {
+    display: flex;
+    align-items: center;
+}
+
+.info-button {
+    --padding-start: 4px;
+    --padding-end: 4px;
+    margin: 0 0 0 2px;
+    min-height: 32px;
+    color: var(--app-muted);
+}
+
+.row ion-toggle.alone {
+    width: auto;
+    flex: none;
+}
+
+/* Charts: a line per series over time, with the highest value above. */
+
+.chart {
+    padding: 12px 16px 14px;
+}
+
+.chart-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 0.85rem;
+    color: var(--app-muted);
+    margin-bottom: 6px;
+}
+
+.chart-legend {
+    display: flex;
+    gap: 12px;
+}
+
+.chart-key::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 3px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: middle;
+    background: currentColor;
+}
+
+.chart-plot {
+    display: block;
+    width: 100%;
+    height: 120px;
+}
+
+.chart-line {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linejoin: round;
+}
+
+.chart-line.series-speed,
+.chart-key.series-speed,
+.chart-line.series-motor,
+.chart-key.series-motor {
+    color: var(--ion-color-primary);
+}
+
+.chart-line.series-rider,
+.chart-key.series-rider {
+    color: var(--app-warning);
+}
+
+/* Rides: the ride being recorded, with its buttons side by side. */
+
+.ride-state {
+    text-align: center;
+    color: var(--app-muted);
+    margin: 4px 0 12px;
+}
+
+.ride-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 16px;
+}
+
+.ride-map {
+    height: 260px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--app-surface-2);
 }

@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 import { fakeClient, view } from '../test-support/fake-client.js';
-import { AuthenticationError, Bike, chooseBike } from './bike.js';
+import { ASSIST_CONFIRM, AuthenticationError, Bike, bikeById, chooseBike, scanForBikes } from './bike.js';
 import { CHARACTERISTIC, SERVICE } from './protocol.js';
 
 const KEY = 'A'.repeat(28);
@@ -16,6 +16,27 @@ describe('choosing and connecting', () => {
             optionalServices: [SERVICE.auth, SERVICE.bike, SERVICE.owner],
         });
         expect(bike.deviceId).toBe(DEVICE);
+    });
+
+    test("on Android, the app's own scan filters on the name and reports each bike", async () => {
+        const fake = fakeClient();
+        const found = jest.fn();
+        const stop = await scanForBikes(fake.client, found);
+        expect(fake.client.requestLEScan).toHaveBeenCalledWith(
+            { namePrefix: 'AMPLER', scanMode: 1 },
+            expect.any(Function)
+        );
+        expect(found).toHaveBeenCalledWith({ deviceId: DEVICE, name: 'AMPLER3', rssi: -60 });
+        await stop();
+        expect(fake.client.stopLEScan).toHaveBeenCalled();
+    });
+
+    test('a bike found before is reached by its identifier, with no scan', async () => {
+        const fake = fakeClient();
+        const bike = await bikeById(fake.client, DEVICE);
+        await bike.connect();
+        expect(fake.client.requestLEScan).not.toHaveBeenCalled();
+        expect(fake.client.connect).toHaveBeenCalledWith(DEVICE, expect.any(Function));
     });
 
     test('on Android, a bike with no bond is bonded before connecting', async () => {
@@ -125,6 +146,41 @@ describe('commands', () => {
         await expect(first).rejects.toThrow('GATT error');
         await second;
         expect(writes).toEqual([{ uuid: CHARACTERISTIC.assistMode.uuid, bytes: '01' }]);
+    });
+
+    test('both assist modes are written at once, and read back until the bike returns them', async () => {
+        const { client, writes } = fakeClient({
+            reads: { [CHARACTERISTIC.assistLevels.uuid]: [0xff, 0x2b, 0x2a, 0xff, 0x95, 0x95, 0, 0] },
+        });
+        const bike = new Bike(client, DEVICE, { native: false });
+        const levels = await bike.changeAssistLevels(
+            { speedKmh: 17, amountPercent: 70 },
+            { speedKmh: 25, amountPercent: 75 }
+        );
+        expect(writes).toEqual([{ uuid: CHARACTERISTIC.assistLevels.uuid, bytes: '77 80 7f ff 95 95' }]);
+        expect(levels.mode1).toEqual({ speedKmh: 17, powerPercent: 70, gainPercent: 70 });
+    });
+
+    test('a bike that keeps its assist levels is read for about a second, and its own levels are returned', async () => {
+        jest.useFakeTimers();
+        try {
+            const { client } = fakeClient({
+                reads: { [CHARACTERISTIC.assistLevels.uuid]: [0xff, 0x2b, 0x2a, 0xff, 0x95, 0x95, 0, 0] },
+                ignored: [CHARACTERISTIC.assistLevels.uuid],
+            });
+            const bike = new Bike(client, DEVICE, { native: false });
+            const pending = bike.changeAssistLevels(
+                { speedKmh: 17, amountPercent: 70 },
+                { speedKmh: 25, amountPercent: 75 }
+            );
+            await jest.advanceTimersByTimeAsync(ASSIST_CONFIRM.reads * ASSIST_CONFIRM.everyMs);
+            const levels = await pending;
+            expect(levels.mode1.speedKmh).toBe(25);
+            const reads = client.read.mock.calls.filter(([, , uuid]) => uuid === CHARACTERISTIC.assistLevels.uuid);
+            expect(reads).toHaveLength(1 + ASSIST_CONFIRM.reads);
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     test("assist levels beyond the bike's maxima are refused before anything is sent", () => {

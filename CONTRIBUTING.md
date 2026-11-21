@@ -15,7 +15,7 @@ How to contribute to OpenAMBike: what helps most, the rules every change follows
 
 - **Captures from other bikes.** The specification is written from one Stellar of 2022 (second generation, firmware 3.9.0). A Bluetooth capture of the official app talking to another model, generation or firmware shows what differs. How to make one is in [reverse-engineering/README.md](reverse-engineering/README.md), "Captures with the official app"; remove the private data before sharing it ([docs/safety.md](docs/safety.md), "Private data"), then describe it in an [issue](https://github.com/Rapsssito/openambike/issues).
 - **Filling the unknowns.** Every gap in [docs/protocol.md](docs/protocol.md) is marked **Unknown**, and [docs/roadmap.md](docs/roadmap.md) lists what is left to find.
-- **The app.** Bugs, translations (one JSON file per language in `app/src/i18n/`) and screens for what the specification documents. See [app/README.md](app/README.md).
+- **The app.** Bugs, translations (one JSON file per language in `app/src/i18n/`) and screens for what the specification documents. See [app/DEVELOPMENT.md](app/DEVELOPMENT.md).
 
 ## Ground rules
 
@@ -40,14 +40,14 @@ From the root of the repository:
 | `npm run lint` | Lint with oxlint and check the formatting with oxfmt (`npm run lint:fix` fixes both) |
 | `npm run ci-checks` | Type check, lint and every test, as before a commit |
 
-The app's own commands are in [app/README.md](app/README.md); the reverse-engineering tools' in [reverse-engineering/README.md](reverse-engineering/README.md).
+The app's own commands are in [app/DEVELOPMENT.md](app/DEVELOPMENT.md); the reverse-engineering tools' in [reverse-engineering/README.md](reverse-engineering/README.md).
 
 ## Checks and commits
 
 - `npm run ci-checks` passes before every commit.
 - `git status` shows nothing from `reverse-engineering/apk/`, `reverse-engineering/decompiled/` or `reverse-engineering/private/`.
-- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`, `docs: …`); the commit-msg hook checks them. The commits merged into `main` since the last release decide the version of the next one, made by hand: `fix` a patch, `feat` a minor version, a breaking change a major one ([app/README.md](app/README.md), "Build and release").
-- A library added to the app has its licence read at its source first, and must be compatible with AGPL-3.0 ([app/README.md](app/README.md), "Libraries and licences").
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`, `docs: …`); the commit-msg hook checks them. The commits merged into `main` since the last release decide the version of the next one, made by hand: `fix` a patch, `feat` a minor version, a breaking change a major one ([app/DEVELOPMENT.md](app/DEVELOPMENT.md), "Build and release").
+- A library added to the app has its licence read at its source first, and must be compatible with AGPL-3.0 ([app/DEVELOPMENT.md](app/DEVELOPMENT.md), "Libraries and licences").
 - A tool the project starts to need is added to the requirements of its part (an `npm` dependency, `reverse-engineering/requirements.txt`, or the README's list of tools). How each contributor installs the tools, on the computer or in a container of their own, stays out of the repository: git ignores `.devcontainer/`.
 
 ## Writing documentation
@@ -55,7 +55,7 @@ The app's own commands are in [app/README.md](app/README.md); the reverse-engine
 - A paragraph or a list item is one line in Markdown, never wrapped by hand. A file meant to be read through opens with a table of contents.
 - Documentation describes the system as it is, not how it got there: no build diaries or dates of deciding. What is left to do goes in [docs/roadmap.md](docs/roadmap.md).
 - Code, tests and scripts never read Markdown files: what a check needs is written in the code.
-- Files for people (`README.md`, this file, `docs/`) explain; files for AI agents (`AGENTS.md`) instruct, and point to the files for people rather than repeat them. A rule that binds everyone goes in a file for people.
+- Files for people (`README.md`, `app/DEVELOPMENT.md`, this file, `docs/`) explain; files for AI agents (`AGENTS.md`) instruct, and point to the files for people rather than repeat them. A rule that binds everyone goes in a file for people.
 
 ## AI agents
 

@@ -40,6 +40,12 @@ android {
         includeInBundle = false
     }
     buildTypes {
+        // The debug build is an app of its own, "OpenAMBike Debug" (src/debug/res/values/strings.xml), so that it
+        // installs beside the release from F-Droid or GitHub, which it would otherwise have to replace.
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             if (keystoreFile) signingConfig signingConfigs.release
             minifyEnabled false

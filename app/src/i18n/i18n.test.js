@@ -16,6 +16,6 @@ describe('translations', () => {
 
     test('values replace their placeholders, and a missing one is left as written', () => {
         expect(t('dashboard.mode', { n: 2 })).toBe('Mode 2');
-        expect(t('assist.save', {})).toBe('Save mode {n}');
+        expect(t('assist.mode', {})).toBe('Mode {n}');
     });
 });

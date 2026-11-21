@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+    <title>OpenAMBike</title>
+    <rect width="108" height="108" rx="24" fill="#0f9d76"/>
+    <path d="M81.05 46.75A28 28 0 1 1 61.25 26.95" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="73.8" cy="34.2" r="5" fill="#ffffff"/>
+    <circle cx="54" cy="54" r="6" fill="#ffffff"/>
+</svg>

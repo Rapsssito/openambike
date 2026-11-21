@@ -3,9 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application
-        android:allowBackup="false"
+        android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="false"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -27,6 +27,22 @@
 
         </activity>
 
+        <!-- Holds the Bluetooth link to the bike (src/main/java/org/openambike/app/link/); a foreground service while
+             auto-connect is on or a ride is recorded. -->
+        <service
+            android:name=".link.BikeLinkService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location" />
+
+        <!-- Starts auto-connect again after the phone restarts, if it was on. -->
+        <receiver
+            android:name=".link.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -38,10 +54,24 @@
         </provider>
     </application>
 
-    <!-- Permissions: Bluetooth only. The app talks to no server, so it has no INTERNET permission. Location is needed
-         for scanning only up to Android 11; from Android 12, scanning asserts it never derives location. -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!-- Permissions: Bluetooth; what auto-connect and rides need to run in the background, a foreground service of the
+         connected-device and location types, its notifications, and starting again after the phone restarts; and the
+         phone's location, asked when a ride starts, to record its route, and "all the time" only when auto-ride is
+         turned on, for the rides it starts with the app closed. Scanning for the bike never derives location
+         from Android 12 on; before, Android needs location for it. INTERNET only for the map of a ride, whose tiles come
+         from OpenFreeMap; the app talks to no server of its own. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" tools:targetApi="s" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation"

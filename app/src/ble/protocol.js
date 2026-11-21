@@ -67,13 +67,16 @@ export function encodeOwnerKey(key) {
     return new TextEncoder().encode(key);
 }
 
+/** The bike's answer on auth when it accepts the key. */
+export const OWNER_OK = 'owner ok';
+
 /**
  * Whether the bike's answer on auth accepts the key: the ASCII text `owner ok`. Any other answer is a failure.
  * @param {Uint8Array} bytes
  * @returns {boolean}
  */
 export function isOwnerOk(bytes) {
-    return decodeAscii(bytes) === 'owner ok';
+    return decodeAscii(bytes) === OWNER_OK;
 }
 
 // Commands.
@@ -319,7 +322,7 @@ export function decodeSwitch(bytes) {
  * @property {number} volts
  * @property {number} milliamps positive while the battery discharges, negative while it charges
  * @property {number} percent
- * @property {number | null} absoluteSoc absolute state of charge, in a unit not yet confirmed (about 1 mWh); null in a
+ * @property {number | null} absoluteSoc absolute state of charge: the energy left, in milliwatt-hours; null in a
  *     frame shorter than 11 bytes
  */
 
@@ -340,14 +343,17 @@ export function decodeBattery(bytes) {
 }
 
 /**
- * Battery extended: the temperature of each battery pack, in °C.
+ * Battery extended: the battery's charge cycles and the temperature of each battery pack, in °C.
  * @param {Uint8Array} bytes
- * @returns {{ packTemperaturesC: [number, number] }}
+ * @returns {{ cycles: number, packTemperaturesC: [number, number] }}
  */
 export function decodeBatteryExtended(bytes) {
     requireLength(bytes, 6, 'battery extended');
     const data = view(bytes);
-    return { packTemperaturesC: [data.getInt16(2, true) / 10, data.getInt16(4, true) / 10] };
+    return {
+        cycles: data.getUint16(0, true),
+        packTemperaturesC: [data.getInt16(2, true) / 10, data.getInt16(4, true) / 10],
+    };
 }
 
 /** Factor between torque in N·m times rotational speed in rpm, and power in W. */
@@ -378,7 +384,13 @@ export function decodeAsiMetrics(bytes) {
 }
 
 /**
- * Range: one unsigned byte, in a unit not yet known.
+ * The bytes of ASI metrics that are all zero while the bike stands still: motor power, speed and the rider's power
+ * (bytes 4 to 11, as decodeAsiMetrics reads them). Any of them not zero means the bike moves or is pedalled.
+ */
+export const ASI_MOVEMENT_BYTES = Object.freeze({ from: 4, to: 12 });
+
+/**
+ * Range: one unsigned byte, in kilometres.
  * @param {Uint8Array} bytes
  * @returns {number}
  */

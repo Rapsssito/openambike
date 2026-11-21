@@ -2,28 +2,13 @@ import { jest } from '@jest/globals';
 
 import { Bike } from './ble/bike.js';
 import { CHARACTERISTIC } from './ble/protocol.js';
-import { createSession, TEMPERATURE_INTERVAL_MS } from './session.js';
-import { DEVICE, fakeClient } from './test-support/fake-client.js';
+import { createSession, InterruptedError, isCharging, NotConfirmedError, TEMPERATURE_INTERVAL_MS } from './session.js';
+import { DEVICE, fakeClient, OFFICIAL_317_READS } from './test-support/fake-client.js';
 
-/** Values the bike of the official-317 capture returns, standing. */
-const READS = {
-    [CHARACTERISTIC.battery.uuid]: [0xfa, 0xc7, 0x00, 0x00, 0x3a, 0x00, 0x4a, 0x64, 0x77, 0x03, 0x00],
-    [CHARACTERISTIC.batteryExtended.uuid]: [0x51, 0x00, 0xe1, 0x00, 0xe9, 0x00, 0xff, 0xff, 0x00, 0x00, 0x8f, 0x00],
-    [CHARACTERISTIC.asiMetrics.uuid]: [0x4f, 0xc2, 0x05, 0x00, 0, 0, 0, 0, 0, 0, 0, 0],
-    [CHARACTERISTIC.range.uuid]: [64],
-    [CHARACTERISTIC.assistMode.uuid]: [1, 0, 0, 0],
-    [CHARACTERISTIC.assistLevels.uuid]: [0xff, 0x2b, 0x2a, 0xff, 0x95, 0x95, 0x00, 0x00],
-    [CHARACTERISTIC.lights.uuid]: [0x0a, 0x00],
-    [CHARACTERISTIC.lock.uuid]: [0],
-    [CHARACTERISTIC.gnssEnabled.uuid]: [1],
-    [CHARACTERISTIC.gsmEnabled.uuid]: [1],
-    [CHARACTERISTIC.firmwareVersion.uuid]: [...new TextEncoder().encode('v3.9.0 1e774d1c f551786850'), 0],
-    [CHARACTERISTIC.batteryFirmwareStatus.uuid]: [...new TextEncoder().encode('Up to date')],
-};
-
-async function startedSession() {
-    const fake = fakeClient({ reads: READS });
-    const session = createSession(new Bike(fake.client, DEVICE, { native: false }));
+/** @param {{ ignored?: string[], confirmTimeoutMs?: number }} [options] */
+async function startedSession({ ignored = [], confirmTimeoutMs } = {}) {
+    const fake = fakeClient({ reads: OFFICIAL_317_READS, ignored });
+    const session = createSession(new Bike(fake.client, DEVICE, { native: false }), { confirmTimeoutMs });
     await session.start();
     return { fake, session };
 }
@@ -32,7 +17,9 @@ describe('session', () => {
     test('official-317: every value is read at the start', async () => {
         const { session } = await startedSession();
         expect(session.state).toMatchObject({
+            connected: true,
             battery: { percent: 74, milliamps: 58 },
+            batteryCycles: 81,
             packTemperaturesC: [22.5, 23.3],
             metrics: { odometerKm: 3774.23 },
             range: 64,
@@ -72,9 +59,50 @@ describe('session', () => {
         await session.stop();
     });
 
-    test('changing one mode writes 6 bytes that keep the other mode, and shows the levels read back', async () => {
+    test('a command does not change the state before the bike notifies the new value', async () => {
         const { fake, session } = await startedSession();
-        await session.changeAssistMode(2, { speedKmh: 25, amountPercent: 60 });
+        /** @type {(boolean | null)[]} */
+        const seen = [];
+        session.onChange((state) => seen.push(state.lights));
+        const command = session.setLights(true);
+        expect(session.state.lights).toBe(false);
+        await command;
+        expect(fake.writes.at(-1)).toEqual({ uuid: CHARACTERISTIC.lights.uuid, bytes: '01 01' });
+        expect(seen).toEqual([true]);
+        await session.stop();
+    });
+
+    test('a command fails if the bike takes the write but does not notify the value, and the state stays', async () => {
+        const { session } = await startedSession({ ignored: [CHARACTERISTIC.lights.uuid], confirmTimeoutMs: 20 });
+        await expect(session.setLights(true)).rejects.toBeInstanceOf(NotConfirmedError);
+        expect(session.state.lights).toBe(false);
+        await session.stop();
+    });
+
+    test('another value notified meanwhile does not confirm a command', async () => {
+        const { fake, session } = await startedSession({ ignored: [CHARACTERISTIC.lock.uuid], confirmTimeoutMs: 20 });
+        const command = session.setLocked(true);
+        fake.notify(CHARACTERISTIC.battery.uuid, [0xfa, 0xc7, 0x00, 0x00, 0x3a, 0x00, 0x4a, 0x64, 0x77, 0x03, 0x00]);
+        fake.notify(CHARACTERISTIC.lock.uuid, [0]);
+        await expect(command).rejects.toBeInstanceOf(NotConfirmedError);
+        expect(session.state.locked).toBe(false);
+        await session.stop();
+    });
+
+    test('a command waiting for the bike fails when the link drops, and none is sent while it is down', async () => {
+        const { fake, session } = await startedSession({ ignored: [CHARACTERISTIC.gsmEnabled.uuid] });
+        const command = session.setGsm(false);
+        await Promise.resolve();
+        await session.pause();
+        await expect(command).rejects.toBeInstanceOf(InterruptedError);
+        const writes = fake.writes.length;
+        await expect(session.setGsm(false)).rejects.toBeInstanceOf(InterruptedError);
+        expect(fake.writes).toHaveLength(writes);
+    });
+
+    test('both modes are written in one write of 6 bytes, and the levels read back are shown', async () => {
+        const { fake, session } = await startedSession();
+        await session.changeAssistLevels({ speedKmh: 25, amountPercent: 50 }, { speedKmh: 25, amountPercent: 60 });
         expect(fake.writes.at(-1)).toEqual({ uuid: CHARACTERISTIC.assistLevels.uuid, bytes: 'ff 2b 2a ff 55 55' });
         expect(session.state.assistLevels?.mode2).toEqual({ speedKmh: 25, powerPercent: 60, gainPercent: 60 });
         expect(session.state.assistLevels?.mode1.powerPercent).toBe(50);
@@ -96,6 +124,27 @@ describe('session', () => {
         } finally {
             jest.useRealTimers();
         }
+    });
+
+    test('pausing keeps the values and the listeners, and starting again reads everything anew', async () => {
+        const { fake, session } = await startedSession();
+        const listener = jest.fn();
+        session.onChange(listener);
+        await session.pause();
+        expect(session.state).toMatchObject({ connected: false, range: 64 });
+        expect(fake.listeners.size).toBe(0);
+        await session.start();
+        expect(session.state.connected).toBe(true);
+        expect(fake.listeners.size).toBeGreaterThan(0);
+        expect(listener).toHaveBeenLastCalledWith(session.state);
+        await session.stop();
+    });
+
+    test('the battery charges while its current is negative', () => {
+        const battery = { volts: 52, milliamps: -2891, percent: 74, absoluteSoc: null };
+        expect(isCharging(battery)).toBe(true);
+        expect(isCharging({ ...battery, milliamps: 58 })).toBe(false);
+        expect(isCharging(null)).toBe(false);
     });
 
     test('stopping ends every notification', async () => {
