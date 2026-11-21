@@ -12,7 +12,9 @@ android {
     namespace = "org.openambike.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "org.openambike.app"
+        // The application ID F-Droid accepts for a project on GitHub, as the project owns no domain; the Java package
+        // (namespace) stays org.openambike.app, as it does not identify the app.
+        applicationId "io.github.rapsssito.openambike"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode releaseVersion.getProperty('versionCode').toInteger()

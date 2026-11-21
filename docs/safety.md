@@ -49,6 +49,6 @@ Private data means: keys and tokens of the bike or of an Ampler account, serial 
 
 AMPLER is a registered trademark of Ampler Bikes OÜ. The project's name, OpenAMBike, does not contain it.
 
-- The name of the app, its package (`org.openambike.app`), its icon and its repository never contain "Ampler" nor Ampler's logo, colours or app icon.
+- The name of the app, its application ID (`io.github.rapsssito.openambike`), its icon and its repository never contain "Ampler" nor Ampler's logo, colours or app icon.
 - "Ampler" is used only to say what the project is compatible with, as in the project's description.
 - Every public description (the README, a release, an app store listing) states: "Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ."

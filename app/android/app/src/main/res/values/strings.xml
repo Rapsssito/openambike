@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">OpenAMBike</string>
     <string name="title_activity_main">OpenAMBike</string>
-    <string name="package_name">org.openambike.app</string>
-    <string name="custom_url_scheme">org.openambike.app</string>
+    <string name="package_name">io.github.rapsssito.openambike</string>
+    <string name="custom_url_scheme">io.github.rapsssito.openambike</string>
 </resources>

@@ -1,5 +1,5 @@
 {
-    "appId": "org.openambike.app",
+    "appId": "io.github.rapsssito.openambike",
     "appName": "OpenAMBike",
     "webDir": "dist"
 }

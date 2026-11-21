@@ -31,6 +31,8 @@ Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or
 
 To update, download and install the newest APK in the same way: it installs over the old one and keeps your key.
 
+If you installed version 1.1.1 or earlier, the new version is a separate app, as its identifier changed so that it can be published on F-Droid, and it does not install over the old one. Move your key first: in the old app, open More, "Export the key", and keep the text and passphrase. Install the new version, then open More, "Import a key", and paste the text with its passphrase. Export any ride you want to keep from the old app's Rides tab, as its rides do not move. Then uninstall the old app: both are called OpenAMBike, and in Android's Settings, Apps, the old one shows version 1.1.1 or earlier at the bottom of its page.
+
 ## Use it in a browser on a computer
 
 The app also runs in Chrome or Edge, on a computer with Bluetooth. It is not hosted online yet, so you run it from your own computer, once:
