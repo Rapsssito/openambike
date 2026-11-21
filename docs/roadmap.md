@@ -30,7 +30,7 @@ Features for Android, offered under More or in their own tab, with an (i) beside
 
 ## 4. Other generations and models
 
-- Publish the app on F-Droid, with F-Droid publishing the project's own signed APK once its build of the same tag is identical (reproducible builds), so that owners can move between the GitHub releases and F-Droid without reinstalling.
+- Submit the app's recipe to [fdroiddata](https://gitlab.com/fdroid/fdroiddata) ([app/DEVELOPMENT.md](../app/DEVELOPMENT.md), "Build and release"), add screenshots to F-Droid's listing, and once F-Droid publishes the app, say how to install it from F-Droid in [README.md](../README.md) and [app/README.md](../app/README.md).
 - Ask owners of other Ampler models and generations to try the app and to send captures of the official app, and write what differs into [protocol.md](protocol.md), "Differences by generation".
 - How the official app 3.0.9 authenticates with and reads the battery of a G1 bike, from its code, to be confirmed by a G1 owner's capture.
 

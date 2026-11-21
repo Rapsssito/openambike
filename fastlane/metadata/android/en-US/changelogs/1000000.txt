@@ -1,0 +1,4 @@
+Features:
+
+- read the owner key from a bug report, and release signed APKs
+- open BLE specification, app and tools for Ampler e-bikes

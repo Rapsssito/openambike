@@ -1,4 +1,11 @@
-import { CHANGELOG_TITLE, RELEASE_BODY_TEMPLATE, versionCode, versionProperties } from './release.js';
+import {
+    CHANGELOG_TITLE,
+    FDROID_CHANGELOG_LIMIT,
+    RELEASE_BODY_TEMPLATE,
+    fdroidChangelog,
+    versionCode,
+    versionProperties,
+} from './release.js';
 
 describe('the Android version of a release', () => {
     test('versionCode grows with every release', () => {
@@ -27,5 +34,35 @@ describe('the Android version of a release', () => {
     test('the changelog says it once, under its title', () => {
         expect(CHANGELOG_TITLE.startsWith('# Changelog\n\n')).toBe(true);
         expect(CHANGELOG_TITLE).toContain('Not affiliated with or endorsed by Ampler Bikes OÜ.');
+    });
+});
+
+describe("F-Droid's changes of a release", () => {
+    const notes = [
+        '# [1.1.0](https://github.com/Rapsssito/openambike/compare/v1.0.0...v1.1.0) (2026-11-21)',
+        '',
+        '',
+        '### Bug Fixes',
+        '',
+        '* **app:** keep the [lock](https://example.org) state after a reconnection ([abc1234](https://github.com/Rapsssito/openambike/commit/abc1234def))',
+        '',
+        '### Features',
+        '',
+        '* rides on a map ([0123456](https://github.com/Rapsssito/openambike/commit/0123456789))',
+        '',
+    ].join('\n');
+
+    test('are plain text, a line per change, with no title and no links', () => {
+        expect(fdroidChangelog(notes)).toBe(
+            'Bug Fixes:\n\n- keep the lock state after a reconnection\n\nFeatures:\n\n- rides on a map\n'
+        );
+    });
+
+    test('fit in what F-Droid shows, the rest left to CHANGELOG.md', () => {
+        const long = ['### Features', '', ...Array.from({ length: 40 }, (_, i) => `* change number ${i}`)].join('\n');
+        const text = fdroidChangelog(long);
+        expect(text.length).toBeLessThanOrEqual(FDROID_CHANGELOG_LIMIT);
+        expect(text).toContain('- change number 0\n');
+        expect(text.trimEnd().endsWith('CHANGELOG.md')).toBe(true);
     });
 });

@@ -1,0 +1,33 @@
+Keep using your Ampler e-bike after Ampler: OpenAMBike talks to the bike directly over Bluetooth, with no account and no servers.
+
+Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
+
+<b>What it does</b>
+<ul>
+<li>Lock and unlock your bike, and turn its lights on and off.</li>
+<li>Choose the assist mode: off, mode 1 or mode 2.</li>
+<li>See your ride live: speed, the motor's power and your own pedalling power, range and odometer.</li>
+<li>Tune the assist of each mode: up to what speed the motor helps (10 to 25 km/h) and how much (40 to 100 %).</li>
+<li>Check the battery: charge, voltage, current and power, temperatures, charge cycles, and an estimate of its health.</li>
+<li>Turn the bike's GPS and mobile network on or off, restart it, send it to sleep or calibrate its torque sensor.</li>
+<li>Auto-connect when you are next to the bike, even with the app closed; auto-lock when you walk away; auto-ride to record your ride from when you set off.</li>
+<li>Record your rides, with or without the bike connected, see the route on a map, and export them as GPX.</li>
+<li>Back up your key, encrypted with a passphrase, to move it to a new phone.</li>
+<li>In English and Spanish.</li>
+</ul>
+
+<b>What you need</b>
+Your bike's owner key, a secret text of 28 characters that the official Ampler app keeps on your phone. It can only be read while the official app still connects to your bike; the guide shows how: https://github.com/Rapsssito/openambike/blob/main/docs/owner-key.md
+
+The app is tested on a Stellar of 2022 (second generation, firmware 3.9.0). Other models have not been tried yet.
+
+<b>What it never does</b>
+<ul>
+<li>Update the bike's firmware.</li>
+<li>Raise the assist speed above 25 km/h or the motor power above the bike's own maximum, or enable speed pedelec settings.</li>
+<li>Send the bike a command that has not been documented and tested.</li>
+<li>Send your data anywhere. The only thing it downloads is the map of a ride you open, from OpenFreeMap, which learns your IP address and the area shown.</li>
+</ul>
+
+<b>Permissions</b>
+Bluetooth, to talk to the bike. Location, also in the background, because Android needs it for Bluetooth on older versions and for recording a ride's route, and so that auto-connect and auto-ride work with the app closed; it never leaves the phone. Notifications and a foreground service, while auto-connect or a ride runs. Internet, only for the map of a ride.

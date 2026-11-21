@@ -1,0 +1,3 @@
+Features:
+
+- auto-connect, auto-lock, rides and auto-ride, through the app's own native service
