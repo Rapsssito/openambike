@@ -390,6 +390,12 @@ export function decodeAsiMetrics(bytes) {
 export const ASI_MOVEMENT_BYTES = Object.freeze({ from: 4, to: 12 });
 
 /**
+ * Where ASI metrics hold the odometer, as decodeAsiMetrics reads it: an unsigned 32-bit little-endian value from byte
+ * `offset`, in hundredths of a kilometre (`perKm` to a kilometre).
+ */
+export const ASI_ODOMETER = Object.freeze({ offset: 0, perKm: 100 });
+
+/**
  * Range: one unsigned byte, in kilometres.
  * @param {Uint8Array} bytes
  * @returns {number}

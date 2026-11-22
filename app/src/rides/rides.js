@@ -1,7 +1,9 @@
 // Rides, Android only: the app's native service records them with the app closed, and this module asks it to start,
 // pause and stop, lists and reads what it kept, and exports rides as GPX through Android's share menu.
-import { CHARACTERISTIC } from '../ble/protocol.js';
+import { ASI_ODOMETER, CHARACTERISTIC } from '../ble/protocol.js';
 import { t } from '../i18n/i18n.js';
+import { KM_PER_MILE } from '../pages/format.js';
+import { loadUnits } from '../preferences.js';
 import { ridesToGpx } from './gpx.js';
 import { createRideReader, SUMMARY_VERSION } from './ride.js';
 
@@ -38,18 +40,24 @@ export function rideName(id, locale = globalThis.document?.documentElement.lang 
 }
 
 /**
- * What the service records a ride with, started by hand or by auto-ride: the characteristics it keeps, and the texts of
- * its notification.
+ * What the service records a ride with, started by hand or by auto-ride: the characteristics it keeps, where the
+ * odometer is, for the distance its notification shows, in the rider's units, and the texts of its notification.
+ * @param {import('../preferences.js').Units} [units]
  */
-export function rideConfig() {
+export function rideConfig(units = loadUnits()) {
     return {
         characteristics: RIDE_CHARACTERISTICS,
+        odometer: { characteristic: CHARACTERISTIC.asiMetrics.uuid, ...ASI_ODOMETER },
+        distance: units === 'mi' ? { kmPerUnit: KM_PER_MILE, unit: 'mi' } : { kmPerUnit: 1, unit: 'km' },
         texts: {
             title: t('app.name'),
             quietChannel: t('autoConnect.quietChannel'),
             alertChannel: t('autoConnect.alertChannel'),
+            rideChannel: t('rides.channel'),
             riding: t('rides.recording'),
             ridePaused: t('rides.pausedNotification'),
+            pause: t('rides.pause'),
+            resume: t('rides.resume'),
         },
     };
 }

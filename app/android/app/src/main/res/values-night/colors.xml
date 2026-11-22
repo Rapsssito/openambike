@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The pause and resume icon of the ride's notification, on the notification's dark background. -->
+    <color name="ride_control">#E8EAED</color>
+</resources>

@@ -175,7 +175,7 @@
     "autoConnect.paused": "En pausa",
     "autoConnect.mayBeUnlocked": "Conexión perdida antes de bloquear. Puede que tu bici esté desbloqueada.",
     "autoConnect.pausedParked": "En pausa tras {minutes} min parada",
-    "autoConnect.quietChannel": "Conexión automática y rutas",
+    "autoConnect.quietChannel": "Conexión automática",
     "autoConnect.connectedLocked": "Conectada · Bloqueada",
     "autoConnect.connectedUnlocked": "Conectada · Desbloqueada",
     "autoConnect.pausedParkedLocked": "Bloqueada y en pausa tras {minutes} min parada",
@@ -228,5 +228,6 @@
     "rides.deleteConfirm": "La ruta se borra de este teléfono.",
     "rides.deleted": "Ruta borrada",
     "more.bikeSettings": "Bicicleta",
-    "more.autoConnectNeedsBike": "Conecta antes una vez con tu bicicleta, para que la conexión automática la conozca."
+    "more.autoConnectNeedsBike": "Conecta antes una vez con tu bicicleta, para que la conexión automática la conozca.",
+    "rides.channel": "Rutas"
 }

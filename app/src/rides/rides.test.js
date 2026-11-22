@@ -1,9 +1,9 @@
-import { CHARACTERISTIC } from '../ble/protocol.js';
+import { ASI_ODOMETER, CHARACTERISTIC, decodeAsiMetrics } from '../ble/protocol.js';
 import { setLanguage } from '../i18n/i18n.js';
 import { fakeClient } from '../test-support/fake-client.js';
 import { fakePlugin } from '../test-support/fake-plugin.js';
 import { RIDE_ID, rideFile } from '../test-support/ride-file.js';
-import { createRides } from './rides.js';
+import { createRides, rideConfig } from './rides.js';
 
 describe('rides', () => {
     beforeAll(() => {
@@ -24,6 +24,19 @@ describe('rides', () => {
         expect(await rides.stop()).toBe(id);
         expect(await rides.active()).toBeNull();
         expect(await rides.list()).toEqual([id]);
+    });
+
+    test("the service shows a ride's distance from the odometer where decodeAsiMetrics reads it, in the rider's units", () => {
+        const { odometer, distance, texts } = rideConfig('mi');
+        expect(odometer.characteristic).toBe(CHARACTERISTIC.asiMetrics.uuid);
+        // The service reads an unsigned 32-bit little-endian value at the offset, divided by perKm.
+        const frame = new Uint8Array(12);
+        new DataView(frame.buffer).setUint32(ASI_ODOMETER.offset, 377_423, true);
+        const view = new DataView(frame.buffer);
+        expect(view.getUint32(odometer.offset, true) / odometer.perKm).toBe(decodeAsiMetrics(frame).odometerKm);
+        expect(distance).toEqual({ kmPerUnit: 1.609344, unit: 'mi' });
+        expect(rideConfig('km').distance).toEqual({ kmPerUnit: 1, unit: 'km' });
+        expect(texts).toMatchObject({ rideChannel: 'Rides', pause: 'Pause', resume: 'Resume' });
     });
 
     test('a ride that grows is read from where it was left', async () => {

@@ -13,6 +13,8 @@ import android.content.pm.ServiceInfo;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.SystemClock;
+import android.view.View;
+import android.widget.RemoteViews;
 import androidx.core.app.NotificationChannelCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -24,6 +26,8 @@ import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.json.JSONArray;
@@ -53,6 +57,15 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     private static final String QUIET_CHANNEL = "auto-connect-quiet";
     /** Only the warning that the bike may be unlocked asks for attention. */
     private static final String ALERT_CHANNEL = "auto-connect-alerts";
+    /**
+     * The ride being recorded, with its time and distance and a button that pauses or resumes it: Android's low
+     * importance, silent and with no pop-up, but with an icon in the status bar and shown on the lock screen.
+     */
+    private static final String RIDE_CHANNEL = "ride";
+    /** What the ride notification's button asks: pause the ride if it records, resume it if paused. */
+    private static final String ACTION_TOGGLE_RIDE = "org.openambike.app.TOGGLE_RIDE";
+    /** The ride notification shows a new distance at most this often. */
+    private static final long RIDE_NOTIFY_MS = 5_000;
     /** The channel of earlier versions, removed. */
     private static final String OLD_STATUS_CHANNEL = "auto-connect";
     private static final int STATUS_NOTIFICATION = 1;
@@ -107,6 +120,11 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     private RideRecorder ride;
     /** What src/rides/ prepared for the ride being recorded, with its identifier; kept until it stops. */
     private JSONObject rideConfig;
+    /** The time and distance of the ride being recorded, for its notification; kept in {@link #rideConfig}. */
+    private RideFigures figures;
+    /** The distance the ride notification shows, and when it was last shown, in {@link SystemClock#elapsedRealtime}. */
+    private String rideShownDistance;
+    private long rideNotifiedAt;
     private SharedPreferences prefs;
     /**
      * What auto-connect keeps apart from its settings, in the backup: the automatic options as the rider set them,
@@ -126,6 +144,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (activeRide != null) {
             try {
                 rideConfig = new JSONObject(activeRide);
+                figures = figuresOf(rideConfig);
             } catch (JSONException unreadable) {
                 prefs.edit().remove("active").apply();
             }
@@ -164,6 +183,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             if (config != null) startAuto();
             if (rideConfig != null && ride == null) startRecorder();
         });
+        if (intent != null && ACTION_TOGGLE_RIDE.equals(intent.getAction())) link.post(this::toggleRidePaused);
         return START_STICKY;
     }
 
@@ -374,6 +394,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         next.put("id", id);
         next.put("auto", byAutoRide);
         rideConfig = next;
+        figures = figuresOf(next);
         prefs.edit().putString("active", next.toString()).apply();
         ContextCompat.startForegroundService(this, new Intent(this, BikeLinkService.class));
         return id;
@@ -392,6 +413,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             showStatus();
         } catch (JSONException | IOException | IllegalArgumentException | SecurityException error) {
             rideConfig = null;
+            figures = null;
             prefs.edit().remove("active").apply();
         }
     }
@@ -411,6 +433,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (ride != null) ride.stop(end);
         ride = null;
         rideConfig = null;
+        figures = null;
         prefs.edit().remove("active").apply();
         if (config == null) {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
@@ -421,20 +444,83 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         }
     }
 
-    /** Pauses or resumes the ride, as the rider asks. */
+    /** Pauses or resumes the ride, as the rider asks in the app. */
     void setRidePaused(boolean paused) {
-        link.post(() -> {
-            if (ride == null) return;
-            if (paused) ride.pause();
-            else ride.resume();
-            try {
-                rideConfig.put("paused", paused);
-                prefs.edit().putString("active", rideConfig.toString()).apply();
-            } catch (JSONException ignored) {
-                // The pause is in the ride's file all the same.
+        link.post(() -> applyRidePaused(paused));
+    }
+
+    /** The ride notification's button: pauses the ride if it records, resumes it if paused. */
+    private void toggleRidePaused() {
+        if (ride != null) applyRidePaused(!ride.paused());
+    }
+
+    /** Pauses or resumes the ride, on the link's thread. */
+    private void applyRidePaused(boolean paused) {
+        if (ride == null) return;
+        if (paused) ride.pause();
+        else ride.resume();
+        if (figures != null) {
+            if (paused) figures.pause(System.currentTimeMillis());
+            else figures.resume(System.currentTimeMillis());
+        }
+        try {
+            rideConfig.put("paused", paused);
+        } catch (JSONException ignored) {
+            // The pause is in the ride's file all the same.
+        }
+        keepRide();
+        showStatus();
+    }
+
+    /** Keeps the ride being recorded, with its figures, so that a restarted service goes on with it. */
+    private void keepRide() {
+        if (rideConfig == null) return;
+        try {
+            if (figures != null) {
+                JSONObject kept = new JSONObject().put("pausedMs", figures.pausedMs).put("km", figures.km);
+                if (figures.pausedAt != null) kept.put("pausedAt", figures.pausedAt);
+                if (figures.lastOdometerKm != null) kept.put("lastOdometerKm", figures.lastOdometerKm);
+                rideConfig.put("figures", kept);
             }
-            showStatus();
-        });
+        } catch (JSONException ignored) {
+            // Kept without its figures: the notification counts them again from there.
+        }
+        prefs.edit().putString("active", rideConfig.toString()).apply();
+    }
+
+    /**
+     * The figures of a ride, from what src/rides/ prepared and what was kept of them; null if unreadable. A ride
+     * started by an earlier version has no odometer to read, and its notification shows only its time.
+     */
+    private static RideFigures figuresOf(JSONObject ride) {
+        try {
+            JSONObject odometerJson = ride.optJSONObject("odometer");
+            RideFigures.Odometer odometer = odometerJson == null
+                ? null
+                : new RideFigures.Odometer(
+                    UUID.fromString(odometerJson.getString("characteristic")),
+                    odometerJson.getInt("offset"),
+                    odometerJson.getDouble("perKm")
+                );
+            JSONObject distance = ride.optJSONObject("distance");
+            RideFigures result = new RideFigures(
+                ride.getLong("id"),
+                odometer,
+                distance != null ? distance.getDouble("kmPerUnit") : 1,
+                distance != null ? distance.getString("unit") : "km"
+            );
+            JSONObject kept = ride.optJSONObject("figures");
+            if (kept != null) {
+                result.pausedMs = kept.optLong("pausedMs", 0);
+                result.pausedAt = kept.has("pausedAt") ? kept.getLong("pausedAt") : null;
+                result.km = kept.optDouble("km", 0);
+                result.lastOdometerKm = kept.has("lastOdometerKm") ? kept.getDouble("lastOdometerKm") : null;
+            }
+            if (ride.optBoolean("paused", false)) result.pause(System.currentTimeMillis());
+            return result;
+        } catch (JSONException | IllegalArgumentException unreadable) {
+            return null;
+        }
     }
 
     /** The ride being recorded, as {@code { id, paused }}, or null. */
@@ -687,6 +773,12 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
                 .build()
         );
         manager.createNotificationChannel(
+            new NotificationChannelCompat.Builder(RIDE_CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW)
+                .setName(text("rideChannel"))
+                .setShowBadge(false)
+                .build()
+        );
+        manager.createNotificationChannel(
             new NotificationChannelCompat.Builder(ALERT_CHANNEL, NotificationManagerCompat.IMPORTANCE_DEFAULT)
                 .setName(text("alertChannel"))
                 .build()
@@ -703,7 +795,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     }
 
     private Notification statusNotification() {
-        if (rideConfig != null) return quietNotification(text(rideConfig.optBoolean("paused", false) ? "ridePaused" : "riding"));
+        if (rideConfig != null) return rideNotification();
         String key;
         switch (status) {
             case CONNECTED:
@@ -737,6 +829,63 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             .build();
     }
 
+    /** A new distance on the ride notification, at most every {@link #RIDE_NOTIFY_MS}; its time Android ticks itself. */
+    private void rideFiguresChanged() {
+        String distance = figures.distance(Locale.getDefault());
+        if (Objects.equals(distance, rideShownDistance)) return;
+        if (SystemClock.elapsedRealtime() - rideNotifiedAt < RIDE_NOTIFY_MS) return;
+        keepRide();
+        showStatus();
+    }
+
+    /**
+     * The ride being recorded: whether it records or is paused, its time, which Android ticks while it records, its
+     * distance once the bike has sent its odometer, and one button with an icon, pause while it records and resume
+     * while paused. A ride started by an earlier version, with no texts for the button, still has it.
+     */
+    private Notification rideNotification() {
+        boolean paused = rideConfig.optBoolean("paused", false);
+        String status = text(paused ? "ridePaused" : "riding");
+        RemoteViews views = new RemoteViews(getPackageName(), R.layout.notification_ride);
+        views.setTextViewText(R.id.ride_status, status);
+        if (figures != null) {
+            long elapsed = figures.elapsedMs(System.currentTimeMillis());
+            views.setChronometer(R.id.ride_time, SystemClock.elapsedRealtime() - elapsed, null, !paused);
+            rideShownDistance = figures.distance(Locale.getDefault());
+        } else {
+            views.setViewVisibility(R.id.ride_time, View.GONE);
+            rideShownDistance = null;
+        }
+        if (rideShownDistance != null) views.setTextViewText(R.id.ride_distance, rideShownDistance);
+        views.setViewVisibility(R.id.ride_distance, rideShownDistance != null ? View.VISIBLE : View.GONE);
+        views.setImageViewResource(R.id.ride_toggle, paused ? R.drawable.ic_ride_resume : R.drawable.ic_ride_pause);
+        views.setContentDescription(R.id.ride_toggle, text(paused ? "resume" : "pause"));
+        views.setOnClickPendingIntent(R.id.ride_toggle, toggleRide());
+        rideNotifiedAt = SystemClock.elapsedRealtime();
+        return new NotificationCompat.Builder(this, RIDE_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_bike)
+            // The texts, for where Android shows no custom view, and for screen readers.
+            .setContentTitle(status)
+            .setContentText(rideShownDistance)
+            .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(views)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(false)
+            .setContentIntent(openApp())
+            .setOngoing(true)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .build();
+    }
+
+    /** Sent by the ride notification's button to this service. */
+    private PendingIntent toggleRide() {
+        Intent intent = new Intent(this, BikeLinkService.class).setAction(ACTION_TOGGLE_RIDE);
+        return PendingIntent.getService(this, 1, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
     private PendingIntent openApp() {
         Intent intent = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         return PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
@@ -749,6 +898,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         BikeLink.Listener current = listener;
         if (current != null) current.onNotification(address, service, characteristic, value);
         if (ride != null) ride.frame(characteristic, value);
+        if (ride != null && figures != null && figures.frame(characteristic, value)) rideFiguresChanged();
         if (config == null || !address.equals(config.address)) return;
         if (characteristic.equals(config.auth.characteristic)) {
             if (config.accepts(value)) {

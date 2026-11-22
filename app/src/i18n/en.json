@@ -175,7 +175,7 @@
     "autoConnect.paused": "Paused",
     "autoConnect.mayBeUnlocked": "Connection lost before locking. Your bike may be unlocked.",
     "autoConnect.pausedParked": "Paused after {minutes} min parked",
-    "autoConnect.quietChannel": "Auto-connect and rides",
+    "autoConnect.quietChannel": "Auto-connect",
     "autoConnect.connectedLocked": "Connected · Locked",
     "autoConnect.connectedUnlocked": "Connected · Unlocked",
     "autoConnect.pausedParkedLocked": "Locked and paused after {minutes} min parked",
@@ -228,5 +228,6 @@
     "rides.deleteConfirm": "The ride is removed from this phone.",
     "rides.deleted": "Ride deleted",
     "more.bikeSettings": "Bike",
-    "more.autoConnectNeedsBike": "Connect to your bike once first, so that auto-connect knows it."
+    "more.autoConnectNeedsBike": "Connect to your bike once first, so that auto-connect knows it.",
+    "rides.channel": "Rides"
 }

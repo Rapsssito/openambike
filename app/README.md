@@ -65,7 +65,7 @@ The app keeps your key, encrypted, on that phone or computer. On Android, it con
 
 ### Record your rides
 
-On Android, the Rides tab records a ride from "Start ride" to "Stop ride": its time, distance, speed and power, and its route on a map. It records with the phone's GPS whether the bike is connected or not, and fills in the bike's figures while it is; it goes on with the screen off or the app closed, with a small notification. The first time, Android asks whether the app may use your location. Stops are left out of the moving time by themselves, and "Pause" leaves out whatever time you choose. Each ride stays in the history, with its map and charts; "Export" gives it as a GPX file to another app (OsmAnd, Organic Maps, Komoot, Strava), and "Export all" gives the whole history in one file.
+On Android, the Rides tab records a ride from "Start ride" to "Stop ride": its time, distance, speed and power, and its route on a map. It records with the phone's GPS whether the bike is connected or not, and fills in the bike's figures while it is; it goes on with the screen off or the app closed, with a silent notification that shows the ride's time and distance, also on the lock screen, and a button to pause or resume it. The first time, Android asks whether the app may use your location. Stops are left out of the moving time by themselves, and "Pause" leaves out whatever time you choose. Each ride stays in the history, with its map and charts; "Export" gives it as a GPX file to another app (OsmAnd, Organic Maps, Komoot, Strava), and "Export all" gives the whole history in one file.
 
 ### Connect, lock and record by itself
 
