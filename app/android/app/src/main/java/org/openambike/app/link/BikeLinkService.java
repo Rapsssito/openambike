@@ -104,7 +104,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             endRide(System.currentTimeMillis() - (now() - lastMoved));
         }
     };
-    private boolean appOnScreen;
+    private volatile boolean appOnScreen;
     private AutoConnect.Status status = AutoConnect.Status.LOOKING;
     /** The bike's lock as last read or notified on this connection, for the notification; null when not known. */
     private Boolean bikeLocked;
@@ -328,9 +328,11 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     }
 
     void setAppOnScreen(boolean onScreen) {
+        // Kept even before the link exists, as when the app opens: otherwise the service would take it for in the
+        // background, and refuse its connections while auto-connect is on.
+        appOnScreen = onScreen;
         if (link == null) return;
         link.post(() -> {
-            appOnScreen = onScreen;
             if (auto != null) auto.setForeground(onScreen, now());
         });
     }

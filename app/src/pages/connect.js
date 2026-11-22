@@ -3,10 +3,8 @@
 // goes wrong as a message. Once linked, the app opens on its tabs.
 import {
     bicycle,
-    checkmarkCircle,
     closeCircle,
     documentTextOutline,
-    ellipseOutline,
     eye,
     eyeOff,
     helpCircleOutline,
@@ -21,6 +19,7 @@ import { t } from '../i18n/i18n.js';
 import { loadBikeId, saveBikeId } from '../preferences.js';
 import { describeError } from './errors.js';
 import { openSignalTest } from './signal.js';
+import { steps } from './steps.js';
 import {
     actionRow,
     button,
@@ -47,37 +46,12 @@ export const OWNER_KEY_GUIDE_URL = 'https://github.com/Rapsssito/openambike/blob
 /** @typedef {import('../storage/key-store.js').KeyStore} KeyStore */
 
 /**
- * The steps of a connection, each waiting, running, done or failed.
+ * The steps of a connection, in a card.
  * @param {string[]} labels
  */
-function steps(labels) {
-    const items = labels.map((label) => {
-        const mark = el('span', { class: 'step-mark' });
-        return { mark, element: el('div', { class: 'step' }, [mark, el('span', {}, [label])]) };
-    });
-    const element = card([
-        el(
-            'div',
-            { class: 'steps' },
-            items.map((i) => i.element)
-        ),
-    ]);
-    /**
-     * @param {number} active the step running; steps before it are done
-     * @param {boolean} [failed] whether the active step failed
-     */
-    const show = (active, failed = false) => {
-        items.forEach(({ mark, element: step }, index) => {
-            const state = index < active ? 'done' : index === active ? (failed ? 'failed' : 'active') : 'waiting';
-            step.className = `step ${state}`;
-            mark.replaceChildren(
-                state === 'active'
-                    ? el('ion-spinner', { name: 'crescent' })
-                    : icon(state === 'done' ? checkmarkCircle : state === 'failed' ? closeCircle : ellipseOutline)
-            );
-        });
-    };
-    return { element, show };
+function connectionSteps(labels) {
+    const list = steps(labels);
+    return { element: card([list.element]), show: list.show };
 }
 
 /**
@@ -171,7 +145,7 @@ export function connectPage({ client, native, bluetoothAvailable, keyStore, mess
     if (!bluetoothAvailable) connectButton.setAttribute('disabled', '');
     const otherKeyButton = button(t('home.otherKey'), { fill: 'clear', color: 'medium' });
     const searchButton = button(t('home.searchAgain'), { fill: 'clear' });
-    const progress = steps([t('home.stepConnect'), t('home.stepKey'), t('home.stepRead')]);
+    const progress = connectionSteps([t('home.stepConnect'), t('home.stepKey'), t('home.stepRead')]);
     const bikes = bikeList((found) => {
         stopScan();
         run(() => bikeById(client, found.deviceId));

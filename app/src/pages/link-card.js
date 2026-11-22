@@ -5,6 +5,7 @@ import { bicycle, closeCircle } from 'ionicons/icons';
 
 import { t } from '../i18n/i18n.js';
 import { describeError } from './errors.js';
+import { steps } from './steps.js';
 import { actionRow, button, card, el, icon } from './ui.js';
 
 /** @typedef {import('../bike-link.js').BikeLink} BikeLink */
@@ -12,6 +13,7 @@ import { actionRow, button, card, el, icon } from './ui.js';
 
 /** The steps of a connection, in the rider's words. */
 const STEPS = /** @type {const} */ (['home.connecting', 'home.authenticating', 'home.reading']);
+const STEP_LABELS = /** @type {const} */ (['home.stepConnect', 'home.stepKey', 'home.stepRead']);
 
 /**
  * What the link is doing, in a sentence.
@@ -52,7 +54,9 @@ export function linkCard({ link, native, onOtherKey, onDisconnect, disconnectLab
     const spinner = el('ion-spinner', { name: 'crescent' });
     const mark = el('span', { class: 'step-mark' });
     const text = el('p', { class: 'link-text', role: 'status' });
+    const progress = steps(STEP_LABELS.map((key) => t(key)));
     const found = el('div');
+    const statusRow = el('div', { class: 'link-status' }, [mark, text]);
     const actions = el('div', { class: 'stack' });
 
     const connectButton = button(t('home.connect'));
@@ -73,12 +77,17 @@ export function linkCard({ link, native, onOtherKey, onDisconnect, disconnectLab
     const render = (status) => {
         const { phase } = status;
         const working = phase === 'connecting' || phase === 'reconnecting' || (phase === 'searching' && !status.done);
+        // The steps of a connection, with ticks, from its first attempt until it fails or it is done.
+        const stepping = phase === 'connecting' || (phase === 'failed' && status.step !== undefined);
+        if (stepping) progress.show(status.step ?? 0, phase === 'failed');
+        progress.element.hidden = !stepping;
+        text.hidden = phase === 'connecting';
         text.textContent = linkText(status);
         text.classList.toggle('failed', phase === 'failed' || phase === 'refused');
-        mark.replaceChildren(
-            ...(working ? [spinner] : phase === 'failed' || phase === 'refused' ? [icon(closeCircle)] : [])
-        );
-        mark.hidden = !working && phase !== 'failed' && phase !== 'refused';
+        const marked = phase !== 'connecting' && (working || phase === 'failed' || phase === 'refused');
+        mark.replaceChildren(...(!marked ? [] : working ? [spinner] : [icon(closeCircle)]));
+        mark.hidden = !marked || (phase === 'failed' && stepping);
+        statusRow.hidden = text.hidden;
         found.replaceChildren(
             ...(phase === 'searching'
                 ? (status.found ?? []).map((bike) =>
@@ -98,7 +107,7 @@ export function linkCard({ link, native, onOtherKey, onDisconnect, disconnectLab
         );
     };
     const element = card(
-        [el('div', { class: 'link-card-body' }, [el('div', { class: 'link-status' }, [mark, text]), found, actions])],
+        [el('div', { class: 'link-card-body' }, [progress.element, statusRow, found, actions])],
         'link-card'
     );
     render(link.status);

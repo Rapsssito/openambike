@@ -1163,7 +1163,12 @@ ion-toast.toast-error {
 .ride-state {
     text-align: center;
     color: var(--app-muted);
-    margin: 4px 0 12px;
+    margin: 0;
+    padding: 20px 16px 12px;
+}
+
+.ride-state:last-child {
+    padding-bottom: 20px;
 }
 
 .ride-actions {
@@ -1208,7 +1213,29 @@ ion-content > .link-card {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 16px;
+    padding: 16px 0;
+}
+
+.link-card-body > * {
+    margin-left: 16px;
+    margin-right: 16px;
+}
+
+.link-card-body > .steps {
+    margin: -8px 0 0;
+}
+
+.link-card-body > :empty,
+.link-card-body > [hidden] {
+    display: none;
+}
+
+.link-card-body ion-button {
+    margin: 0;
+}
+
+.link-card-body .stack > * + * {
+    margin-top: 8px;
 }
 
 .link-status {
