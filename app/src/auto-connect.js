@@ -84,6 +84,13 @@ export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, 
 }
 
 /**
+ * Whether the automatic options need auto-connect: auto-lock or auto-ride. On its own it would only hold the bike's
+ * connection, which the rider cannot turn on or off by itself.
+ * @param {Partial<Automatic>} options
+ */
+export const needsAutoConnect = ({ autoLock, autoRide }) => Boolean(autoLock || autoRide);
+
+/**
  * Auto-connect, as the screens use it.
  * @param {BikeLinkPlugin} plugin
  */
@@ -111,6 +118,11 @@ export function createAutoConnect(plugin) {
         async disable() {
             await plugin.setAutoConnect({});
         },
+        /** Turns off auto-connect left on alone by an earlier version, with neither auto-lock nor auto-ride. */
+        async turnOffAlone() {
+            const { enabled, autoLock, autoRide } = await status();
+            if (enabled && !needsAutoConnect({ autoLock, autoRide })) await plugin.setAutoConnect({});
+        },
         /**
          * Sends what auto-connect runs with again, if it is on: the texts in the language of now, and the key the bike
          * accepted last. After a backup was restored, it turns auto-connect on again with the options it brought back,
@@ -122,7 +134,11 @@ export function createAutoConnect(plugin) {
         async refresh({ address, key }) {
             const { enabled, config, restored } = await plugin.getAutoConnect();
             const saved = enabled && config ? JSON.parse(config) : restored ? JSON.parse(restored) : null;
-            if (!saved) return { restored: false, autoRide: false };
+            if (!saved || !needsAutoConnect(saved)) {
+                // Left on alone by an earlier version, it turns off, as no switch shows it.
+                if (enabled) await plugin.setAutoConnect({});
+                return { restored: false, autoRide: false };
+            }
             const autoLock = Boolean(saved.autoLock);
             await enable({
                 address,

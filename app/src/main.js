@@ -165,4 +165,6 @@ async function onConnected(bike, key) {
     );
 }
 
+// Auto-connect left on alone by an earlier version turns off, as no switch shows it any more.
+autoConnect?.turnOffAlone().catch(() => undefined);
 showConnect();

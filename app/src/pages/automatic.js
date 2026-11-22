@@ -1,39 +1,40 @@
-// The automatic options, auto-connect, auto-lock, auto-unlock and auto-ride: settings of the phone that the app's native
-// service keeps (Android only), shown in Settings, with or without a bike connected.
+// The automatic options, auto-lock, auto-unlock and auto-ride: settings of the phone that the app's native service keeps
+// (Android only), shown in Settings, with or without a bike connected. Auto-connect has no switch of its own: it runs
+// while auto-lock or auto-ride is on, which need it, and stops once both are off.
 import { bicycle, bluetooth, lockClosed, lockOpen, warning } from 'ionicons/icons';
 
+import { needsAutoConnect } from '../auto-connect.js';
 import { t } from '../i18n/i18n.js';
 import { describeError } from './errors.js';
 import { actionRow, confirmAction, section, showToast, switchRow } from './ui.js';
 
 /** @typedef {import('../storage/key-store.js').KeyStore} KeyStore */
 /** @typedef {import('../auto-connect.js').AutoConnect} AutoConnect */
+/** @typedef {import('../auto-connect.js').Automatic} Automatic */
+
+const NONE = Object.freeze({ autoLock: false, autoUnlock: false, autoRide: false });
 
 /**
- * Auto-lock and auto-ride are offered only with auto-connect, and auto-unlock only with auto-lock, so that a bike
- * unlocked on arrival is locked again on leaving; each shows indented under the option it depends on. The web app shows
- * only auto-connect, greyed out, and says that it needs the Android app.
+ * Auto-unlock is offered only with auto-lock, indented under it, so that a bike unlocked on arrival is locked again on
+ * leaving. The web app shows auto-lock and auto-ride greyed out, and says that they need the Android app.
  * @param {object} options
  * @param {AutoConnect | null} options.autoConnect on Android only
  * @param {KeyStore} options.keyStore
  * @param {() => string | null} options.address the Bluetooth address of the bike auto-connect connects to
- * @param {HTMLElement[]} [options.rows] more rows, shown only while auto-connect is on
- * @param {(enabled: boolean) => void} [options.onShow] called whenever it shows whether auto-connect is on
+ * @param {HTMLElement[]} [options.rows] more rows, shown only while auto-connect runs
+ * @param {(enabled: boolean) => void} [options.onShow] called whenever it shows whether auto-connect runs
  * @returns {{ element: HTMLElement, stop: () => void }} `stop` ends its watch of the app coming back on screen
  */
 export function automaticSection({ autoConnect, keyStore, address, rows = [], onShow }) {
-    /** @type {import('../auto-connect.js').Automatic} */
-    let automatic = { autoLock: false, autoUnlock: false, autoRide: false };
+    /** @type {Automatic} */
+    let automatic = NONE;
     const unavailable = autoConnect ? undefined : t('more.needsApp');
-    /** @param {boolean} enabled */
-    const showAutoConnect = (enabled) => {
-        autoConnectRow.set(enabled);
+    const showAutomatic = () => {
+        const enabled = needsAutoConnect(automatic);
         autoLockRow.set(automatic.autoLock);
         autoUnlockRow.set(automatic.autoUnlock);
         autoRideRow.set(automatic.autoRide);
-        autoLockRow.element.hidden = !enabled;
-        autoUnlockRow.element.hidden = !enabled || !automatic.autoLock;
-        autoRideRow.element.hidden = !enabled;
+        autoUnlockRow.element.hidden = !automatic.autoLock;
         for (const row of rows) row.hidden = !enabled;
         if (onShow) onShow(enabled);
         checkRideLocation();
@@ -51,7 +52,7 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
     });
     rideLocationRow.hidden = true;
     const checkRideLocation = async () => {
-        const wanted = Boolean(autoConnect) && !autoRideRow.element.hidden && automatic.autoRide;
+        const wanted = Boolean(autoConnect) && automatic.autoRide;
         rideLocationRow.hidden = !wanted || (await autoConnect?.hasBackgroundLocation().catch(() => true)) !== false;
     };
     // Back from Android's settings, where "all the time" is allowed, or after the permission was taken back.
@@ -60,47 +61,41 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
     };
     document.addEventListener('visibilitychange', onVisible);
     /**
-     * Turns auto-connect on, with the automatic asked, or off; shows what the phone then has.
-     * @param {boolean} enabled
-     * @param {import('../auto-connect.js').Automatic} asked
+     * Sets the automatic options asked: auto-connect runs with them while one needs it, and stops otherwise. Shows what
+     * the phone then has.
+     * @param {Automatic} asked
      */
-    const applyAutoConnect = async (enabled, asked) => {
+    const apply = async (asked) => {
         if (!autoConnect) return;
         const next = { ...asked, autoUnlock: asked.autoLock && asked.autoUnlock };
         try {
-            const ownerKey = enabled ? await keyStore.load() : null;
-            const bike = address();
-            const on = enabled && ownerKey !== null && bike !== null;
-            if (on) {
-                await autoConnect.enable({ address: bike, key: ownerKey, ...next });
-                automatic = next;
-            } else {
+            if (!needsAutoConnect(next)) {
                 await autoConnect.disable();
-                automatic = { autoLock: false, autoUnlock: false, autoRide: false };
+                automatic = NONE;
+            } else {
+                const ownerKey = await keyStore.load();
+                const bike = address();
+                if (ownerKey === null || bike === null) {
+                    // With no bike known or no key saved, as before the first connection, nothing turns on.
+                    await showToast(t('more.autoConnectNeedsBike'), 'error');
+                } else {
+                    await autoConnect.enable({ address: bike, key: ownerKey, ...next });
+                    automatic = next;
+                }
             }
-            showAutoConnect(on);
-            // Turned on with no bike known or no key saved, as before the first connection, it stays off.
-            if (enabled && !on) await showToast(t('more.autoConnectNeedsBike'), 'error');
         } catch (error) {
             const text = describeError(error);
             if (text) await showToast(text, 'error');
         }
+        showAutomatic();
     };
-    const autoConnectRow = switchRow({
-        label: t('more.autoConnect'),
-        iconName: bluetooth,
-        info: t('more.autoConnectInfo'),
-        local: true,
-        unavailable,
-        onChange: (on) => applyAutoConnect(on, automatic),
-    });
     const autoLockRow = switchRow({
         label: t('more.autoLock'),
         iconName: lockClosed,
         info: t('more.autoLockInfo'),
         local: true,
         unavailable,
-        onChange: (on) => applyAutoConnect(true, { ...automatic, autoLock: on }),
+        onChange: (on) => apply({ ...automatic, autoLock: on }),
     });
     const autoUnlockRow = switchRow({
         label: t('more.autoUnlock'),
@@ -117,7 +112,7 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
             ) {
                 return;
             }
-            await applyAutoConnect(true, { ...automatic, autoUnlock: on });
+            await apply({ ...automatic, autoUnlock: on });
         },
     });
     const autoRideRow = switchRow({
@@ -130,37 +125,31 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
             // Location "all the time" gives the rides it starts with the app closed their route; refused, the warning
             // under it stays, with "Allow".
             if (on && autoConnect) await autoConnect.askBackgroundLocation().catch(() => false);
-            await applyAutoConnect(true, { ...automatic, autoRide: on });
+            await apply({ ...automatic, autoRide: on });
         },
     });
-    // Indented under what they depend on: auto-lock, auto-ride and the extra rows under auto-connect, auto-unlock under
-    // auto-lock, and the warning about location under auto-ride.
-    for (const row of [autoLockRow.element, autoRideRow.element, ...rows]) row.classList.add('sub-option');
-    for (const row of [autoUnlockRow.element, rideLocationRow]) row.classList.add('sub-option', 'second-level');
+    autoUnlockRow.element.hidden = true;
+    // Indented under what they depend on: auto-unlock under auto-lock, the warning about location under auto-ride.
+    for (const row of [autoUnlockRow.element, rideLocationRow]) row.classList.add('sub-option');
     const element = section(
         t('more.automatic'),
-        [
-            autoConnectRow.element,
-            autoLockRow.element,
-            autoUnlockRow.element,
-            autoRideRow.element,
-            rideLocationRow,
-            ...rows,
-        ],
+        [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, rideLocationRow, ...rows],
         { iconName: bluetooth }
     );
     if (autoConnect) {
         autoConnect
             .status()
             .then(({ enabled, autoLock, autoUnlock, autoRide }) => {
-                automatic = { autoLock, autoUnlock, autoRide };
-                showAutoConnect(enabled);
+                automatic = enabled ? { autoLock, autoUnlock, autoRide } : NONE;
+                showAutomatic();
             })
-            .catch(() => showAutoConnect(false));
+            .catch(() => showAutomatic());
     } else {
-        // In the web app, auto-connect shows, off and greyed out, and nothing that depends on it.
-        autoConnectRow.set(false);
-        for (const row of [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, ...rows]) row.hidden = true;
+        // In the web app, auto-lock and auto-ride show, off and greyed out, and auto-unlock, which depends on one, not.
+        autoLockRow.set(false);
+        autoRideRow.set(false);
+        autoUnlockRow.element.hidden = true;
+        for (const row of rows) row.hidden = true;
     }
     return { element, stop: () => document.removeEventListener('visibilitychange', onVisible) };
 }

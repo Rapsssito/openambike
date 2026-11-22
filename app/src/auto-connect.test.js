@@ -43,7 +43,7 @@ describe('auto-connect', () => {
     test('the notifications are in the language of the app', () => {
         setLanguage('es');
         const { texts } = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: false });
-        expect(texts.looking).toBe('Conexión automática activada');
+        expect(texts.looking).toBe('Buscando tu bici');
         expect(texts.pausedParked).toContain('15 min parada');
     });
 
@@ -92,7 +92,7 @@ describe('auto-connect', () => {
             autoLock: true,
             autoUnlock: true,
             autoRide: true,
-            texts: { looking: 'Conexión automática activada' },
+            texts: { looking: 'Buscando tu bici' },
             ride: { texts: { riding: expect.any(String) } },
         });
         await autoConnect.disable();
@@ -114,6 +114,24 @@ describe('auto-connect', () => {
         expect(await autoConnect.refresh({ address: ADDRESS, key: KEY })).toEqual({ restored: false, autoRide: true });
         plugin.backgroundLocation = false;
         expect(await autoConnect.hasBackgroundLocation()).toBe(false);
+    });
+
+    test('auto-connect left on alone, with neither auto-lock nor auto-ride, turns off; restored alone, it stays off', async () => {
+        const plugin = fakePlugin(fakeClient());
+        const autoConnect = createAutoConnect(plugin);
+        await autoConnect.enable({ address: ADDRESS, key: KEY, autoLock: false });
+        await autoConnect.turnOffAlone();
+        expect((await autoConnect.status()).enabled).toBe(false);
+        await autoConnect.enable({ address: ADDRESS, key: KEY, autoLock: false });
+        expect(await autoConnect.refresh({ address: ADDRESS, key: KEY })).toEqual({ restored: false, autoRide: false });
+        expect((await autoConnect.status()).enabled).toBe(false);
+        await autoConnect.enable({ address: ADDRESS, key: KEY, autoLock: true });
+        await autoConnect.turnOffAlone();
+        expect((await autoConnect.status()).enabled).toBe(true);
+        await autoConnect.disable();
+        plugin.restored = JSON.stringify({ autoLock: false, autoUnlock: false, autoRide: false });
+        expect(await autoConnect.refresh({ address: ADDRESS, key: KEY })).toEqual({ restored: false, autoRide: false });
+        expect((await autoConnect.status()).enabled).toBe(false);
     });
 
     test('pausing and the connection signal go to the service', async () => {
