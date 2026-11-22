@@ -92,11 +92,20 @@ const app = document.querySelector('ion-app');
 
 /**
  * @param {string} [message]
- * @param {boolean} [autoConnect]
+ * @param {boolean} [connectAtOnce] whether to connect at once with a saved key and a known bike
  */
-function showConnect(message, autoConnect = true) {
+function showConnect(message, connectAtOnce = true) {
     app?.replaceChildren(
-        connectPage({ client, native, bluetoothAvailable, keyStore, message, autoConnect, onConnected })
+        connectPage({
+            client,
+            native,
+            bluetoothAvailable,
+            keyStore,
+            message,
+            autoConnect: connectAtOnce,
+            automatic: autoConnect,
+            onConnected,
+        })
     );
 }
 

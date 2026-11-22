@@ -12,14 +12,16 @@ import {
     helpCircleOutline,
     keyOutline,
     search,
+    settings,
 } from 'ionicons/icons';
 
 import { AuthenticationError, bikeById, chooseBike, SCAN_TIMEOUT_MS, scanForBikes } from '../ble/bike.js';
 import { isOwnerKey } from '../ble/protocol.js';
 import { ownerKeysInBugReport } from '../bug-report/owner-key.js';
 import { t } from '../i18n/i18n.js';
-import { loadBikeId, saveBikeId } from '../preferences.js';
+import { loadBikeId, loadUnits, saveBikeId, saveUnits } from '../preferences.js';
 import { describeError } from './errors.js';
+import { settingsPage } from './settings.js';
 import { openSignalTest } from './signal.js';
 import {
     actionRow,
@@ -31,6 +33,7 @@ import {
     externalLink,
     icon,
     inputValue,
+    openSheet,
     page,
     pickFile,
     section,
@@ -128,6 +131,7 @@ function bikeList(onChoose) {
  * @param {KeyStore} options.keyStore
  * @param {string} [options.message] shown instead of the default, such as why the last connection ended
  * @param {boolean} [options.autoConnect] whether to connect at once with a saved key and a known bike
+ * @param {import('../auto-connect.js').AutoConnect | null} [options.automatic] auto-connect, on Android only
  * @param {(bike: Bike, key: string) => Promise<void>} options.onConnected called with the authenticated bike
  * @returns {HTMLElement}
  */
@@ -138,6 +142,7 @@ export function connectPage({
     keyStore,
     message: initial,
     autoConnect = true,
+    automatic = null,
     onConnected,
 }) {
     const keyInput = el('ion-input', {
@@ -205,6 +210,46 @@ export function connectPage({
         ],
         { iconName: keyOutline }
     );
+
+    // Settings, with no bike connected: what needs no bike, such as the automatic options and the key's export.
+    /** @type {{ dismiss: () => Promise<boolean> } | null} */
+    let moreSheet = null;
+    const closeMore = () => {
+        const sheet = moreSheet;
+        moreSheet = null;
+        return sheet ? sheet.dismiss().catch(() => false) : Promise.resolve(false);
+    };
+    async function openMore() {
+        const more = settingsPage({
+            session: null,
+            keyStore,
+            units: loadUnits,
+            setUnits: saveUnits,
+            onForget: async () => {
+                // As with a bike connected, forgetting the key turns auto-connect off.
+                await automatic?.disable().catch(() => undefined);
+                storedKey = null;
+                progress.element.hidden = true;
+                layout();
+                await closeMore();
+                await showToast(t('more.forgotten'));
+            },
+            onImported: async (imported) => {
+                storedKey = imported;
+                setInputValue(keyInput, '');
+                layout();
+                await closeMore();
+            },
+            autoConnect: automatic,
+            bikeAddress: native ? loadBikeId : () => null,
+            hasKey: storedKey !== null,
+        });
+        moreSheet = await openSheet(t('more.title'), more.content, () => {
+            more.stop();
+            moreSheet = null;
+        });
+    }
+    const moreRow = actionRow({ iconName: settings, label: t('more.title'), onClick: () => openMore() });
 
     /** @type {string | null} */
     let storedKey = null;
@@ -310,6 +355,7 @@ export function connectPage({
             if (native) saveBikeId(bike.deviceId);
             progress.show(++step);
             say(t('home.reading'));
+            await closeMore();
             await onConnected(bike, ownerKey);
         } catch (error) {
             if (bike) await bike.disconnect().catch(() => undefined);
@@ -425,6 +471,7 @@ export function connectPage({
             otherKeyButton,
         ]),
         help,
+        card([moreRow]),
         el('p', { class: 'disclaimer' }, [t('app.disclaimer')]),
     ]);
     element.classList.add('connect-page');

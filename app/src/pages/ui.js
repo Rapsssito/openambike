@@ -523,6 +523,7 @@ export function disclosure(title, detail, text) {
  * @param {string} title
  * @param {(Node | string)[]} content
  * @param {() => void} [onClose] called once the sheet is closed
+ * @returns {Promise<{ dismiss: () => Promise<boolean> }>} the sheet, once shown
  */
 export async function openSheet(title, content, onClose) {
     const closeButton = el('ion-button', { 'aria-label': t('common.close') }, [icon(close, { slot: 'icon-only' })]);
@@ -539,6 +540,7 @@ export async function openSheet(title, content, onClose) {
     closeButton.addEventListener('click', () => modal.dismiss());
     if (onClose) modal.onDidDismiss().then(onClose, onClose);
     await modal.present();
+    return modal;
 }
 
 /**

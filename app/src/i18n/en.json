@@ -18,7 +18,7 @@
     "tabs.bike": "Bike",
     "tabs.assist": "Assist",
     "tabs.battery": "Battery",
-    "tabs.more": "More",
+    "tabs.more": "Settings",
     "dashboard.title": "Bike",
     "dashboard.range": "Range",
     "dashboard.speed": "Speed",
@@ -47,12 +47,12 @@
     "battery.discharging": "Discharging",
     "battery.power": "Power",
     "battery.firmware": "Battery firmware",
-    "more.title": "More",
+    "more.title": "Settings",
     "more.information": "Bike information",
     "more.firmware": "Firmware",
     "more.motorFirmware": "Motor firmware",
     "more.batterySerialNumber": "Battery serial number",
-    "more.settings": "Settings",
+    "more.settings": "App",
     "more.gnss": "GPS",
     "more.gsm": "Mobile network",
     "more.units": "Units",
@@ -226,5 +226,7 @@
     "rides.rider": "You",
     "rides.delete": "Delete ride",
     "rides.deleteConfirm": "The ride is removed from this phone.",
-    "rides.deleted": "Ride deleted"
+    "rides.deleted": "Ride deleted",
+    "more.bikeSettings": "Bike",
+    "more.autoConnectNeedsBike": "Connect to your bike once first, so that auto-connect knows it."
 }

@@ -31,7 +31,7 @@ Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or
 
 To update, download and install the newest APK in the same way: it installs over the old one and keeps your key.
 
-If you installed version 1.1.1 or earlier, the new version is a separate app, as its identifier changed so that it can be published on F-Droid, and it does not install over the old one. Move your key first: in the old app, open More, "Export the key", and keep the text and passphrase. Install the new version, then open More, "Import a key", and paste the text with its passphrase. Export any ride you want to keep from the old app's Rides tab, as its rides do not move. Then uninstall the old app: both are called OpenAMBike, and in Android's Settings, Apps, the old one shows version 1.1.1 or earlier at the bottom of its page.
+If you installed version 1.1.1 or earlier, the new version is a separate app, as its identifier changed so that it can be published on F-Droid, and it does not install over the old one. Move your key first: in the old app, connected to your bike, open More, "Export the key", and keep the text and passphrase. Install the new version, then on its first screen open "Settings", "Import a key", and paste the text with its passphrase. Export any ride you want to keep from the old app's Rides tab, as its rides do not move. Then uninstall the old app: both are called OpenAMBike, and in Android's Settings, Apps, the old one shows version 1.1.1 or earlier at the bottom of its page.
 
 ## Use it in a browser on a computer
 
@@ -69,12 +69,12 @@ On Android, the Rides tab records a ride from "Start ride" to "Stop ride": its t
 
 ### Connect, lock and record by itself
 
-On Android, under More, "Automatic" (a browser shows these options greyed out, since only the Android app keeps working with the app closed):
+On Android, under Settings, "Automatic" (a browser shows these options greyed out, since only the Android app keeps working with the app closed). With the bike away, "Settings" on the app's first screen has them too, so that you can turn them off without connecting:
 
 - **Auto-connect** connects to your bike by itself when you are next to it, even with the app closed, and disconnects when you walk away. While it is on, Android needs it to show a notification, which stays small and silent at the bottom of your notifications; Android asks once whether the app may show notifications.
 - **Auto-lock**, with auto-connect on, locks your bike when you walk away from it. It never locks it while it moves, and never unlocks it. If the connection drops before it could lock, a notification says so: check the bike.
 - **Auto-unlock**, with auto-lock on, unlocks your bike when auto-connect connects to it because you came next to it. It does so whenever your phone comes within about 1.5 m, even if you don't mean to ride, as with the bike parked beside your home; it locks again when you walk away. The app asks you to confirm before turning it on. If you lock the bike in the app yourself, it stays locked until you unlock it in the app.
-- **Auto-ride**, with auto-connect on, starts recording a ride once the bike has moved for 20 seconds, even with the app closed, and stops it when you walk away or after 15 minutes standing; the minutes standing are not part of the ride. A ride you start yourself, you stop yourself. Android asks whether the app may use your location "all the time", which gives the rides it starts with the app closed their route; without it, they have the bike's figures and no map, and More says so under auto-ride, with a button to allow it.
+- **Auto-ride**, with auto-connect on, starts recording a ride once the bike has moved for 20 seconds, even with the app closed, and stops it when you walk away or after 15 minutes standing; the minutes standing are not part of the ride. A ride you start yourself, you stop yourself. Android asks whether the app may use your location "all the time", which gives the rides it starts with the app closed their route; without it, they have the bike's figures and no map, and Settings says so under auto-ride, with a button to allow it.
 - If the bike stands next to you for 15 minutes, as in a garage beside your home, auto-connect locks it (with auto-lock on), disconnects and pauses, so that the bike can sleep. It turns back on by itself about a minute after you leave, or when you open the app. Disconnecting in the app pauses it too, until you connect again: while auto-connect is on, the button says "Disconnect and pause auto-connect".
 
 Tap (i) beside each to read what it does.

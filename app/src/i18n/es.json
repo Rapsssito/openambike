@@ -18,7 +18,7 @@
     "tabs.bike": "Bici",
     "tabs.assist": "Asistencia",
     "tabs.battery": "Batería",
-    "tabs.more": "Más",
+    "tabs.more": "Ajustes",
     "dashboard.title": "Bici",
     "dashboard.range": "Autonomía",
     "dashboard.speed": "Velocidad",
@@ -47,12 +47,12 @@
     "battery.discharging": "Descargando",
     "battery.power": "Potencia",
     "battery.firmware": "Firmware de la batería",
-    "more.title": "Más",
+    "more.title": "Ajustes",
     "more.information": "Información de la bici",
     "more.firmware": "Firmware",
     "more.motorFirmware": "Firmware del motor",
     "more.batterySerialNumber": "Número de serie de la batería",
-    "more.settings": "Ajustes",
+    "more.settings": "App",
     "more.gnss": "GPS",
     "more.gsm": "Red móvil",
     "more.units": "Unidades",
@@ -226,5 +226,7 @@
     "rides.rider": "Tú",
     "rides.delete": "Borrar ruta",
     "rides.deleteConfirm": "La ruta se borra de este teléfono.",
-    "rides.deleted": "Ruta borrada"
+    "rides.deleted": "Ruta borrada",
+    "more.bikeSettings": "Bicicleta",
+    "more.autoConnectNeedsBike": "Conecta antes una vez con tu bicicleta, para que la conexión automática la conozca."
 }

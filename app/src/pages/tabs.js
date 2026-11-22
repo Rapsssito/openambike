@@ -1,14 +1,14 @@
 // The connected app: four tabs over one session, and a fifth for rides on Android, each page re-rendered whenever the
 // bike's state changes, with the connection status in every header.
-import { batteryFull, bicycle, ellipsisHorizontal, map, speedometer } from 'ionicons/icons';
+import { batteryFull, bicycle, map, settings, speedometer } from 'ionicons/icons';
 
 import { t } from '../i18n/i18n.js';
 import { loadUnits, saveUnits } from '../preferences.js';
 import { assistPage } from './assist.js';
 import { batteryPage } from './battery.js';
 import { dashboardPage } from './dashboard.js';
-import { morePage } from './more.js';
 import { ridesPage } from './rides.js';
+import { settingsPage } from './settings.js';
 import { showRoute } from '../rides/route-map.js';
 import { el, icon, statusBadge } from './ui.js';
 
@@ -53,9 +53,9 @@ export function tabsPage({ session, keyStore, onDisconnect, onSleep, onForget, a
             : []),
         {
             tab: 'more',
-            iconName: ellipsisHorizontal,
+            iconName: settings,
             label: t('tabs.more'),
-            page: morePage({
+            page: settingsPage({
                 session,
                 keyStore,
                 units: getUnits,
