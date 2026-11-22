@@ -11,7 +11,8 @@ import { actionRow, confirmAction, section, showToast, switchRow } from './ui.js
 
 /**
  * Auto-lock and auto-ride are offered only with auto-connect, and auto-unlock only with auto-lock, so that a bike
- * unlocked on arrival is locked again on leaving. The web app shows them greyed out, and says they need the app.
+ * unlocked on arrival is locked again on leaving; each shows indented under the option it depends on. The web app shows
+ * only auto-connect, greyed out, and says that it needs the Android app.
  * @param {object} options
  * @param {AutoConnect | null} options.autoConnect on Android only
  * @param {KeyStore} options.keyStore
@@ -132,6 +133,10 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
             await applyAutoConnect(true, { ...automatic, autoRide: on });
         },
     });
+    // Indented under what they depend on: auto-lock, auto-ride and the extra rows under auto-connect, auto-unlock under
+    // auto-lock, and the warning about location under auto-ride.
+    for (const row of [autoLockRow.element, autoRideRow.element, ...rows]) row.classList.add('sub-option');
+    for (const row of [autoUnlockRow.element, rideLocationRow]) row.classList.add('sub-option', 'second-level');
     const element = section(
         t('more.automatic'),
         [
@@ -153,9 +158,9 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
             })
             .catch(() => showAutoConnect(false));
     } else {
-        // In the web app, every option shows, off and greyed out.
-        for (const row of [autoConnectRow, autoLockRow, autoUnlockRow, autoRideRow]) row.set(false);
-        for (const row of rows) row.hidden = true;
+        // In the web app, auto-connect shows, off and greyed out, and nothing that depends on it.
+        autoConnectRow.set(false);
+        for (const row of [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, ...rows]) row.hidden = true;
     }
     return { element, stop: () => document.removeEventListener('visibilitychange', onVisible) };
 }

@@ -69,7 +69,7 @@ On Android, the Rides tab records a ride from "Start ride" to "Stop ride": its t
 
 ### Connect, lock and record by itself
 
-On Android, under Settings, "Automatic" (a browser shows these options greyed out, since only the Android app keeps working with the app closed). With the bike away, "Settings" on the app's first screen has them too, so that you can turn them off without connecting:
+On Android, under Settings, "Automatic" (a browser shows only auto-connect, greyed out, since only the Android app keeps working with the app closed). Auto-lock and auto-ride appear once auto-connect is on, and auto-unlock once auto-lock is on. With the bike away, "Settings" on the app's first screen has them too, so that you can turn them off without connecting:
 
 - **Auto-connect** connects to your bike by itself when you are next to it, even with the app closed, and disconnects when you walk away. While it is on, Android needs it to show a notification, which stays small and silent at the bottom of your notifications; Android asks once whether the app may show notifications.
 - **Auto-lock**, with auto-connect on, locks your bike when you walk away from it. It never locks it while it moves, and never unlocks it. If the connection drops before it could lock, a notification says so: check the bike.

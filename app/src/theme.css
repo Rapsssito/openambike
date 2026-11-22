@@ -411,6 +411,15 @@
     border-top: 1px solid var(--app-line);
 }
 
+/* An option offered only with the one above it, indented by an icon and its gap per level. */
+.row.sub-option {
+    padding-left: 48px;
+}
+
+.row.sub-option.second-level {
+    padding-left: 80px;
+}
+
 .row ion-toggle {
     width: 100%;
 }
