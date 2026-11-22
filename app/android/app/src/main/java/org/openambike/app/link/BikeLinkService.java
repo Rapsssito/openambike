@@ -766,22 +766,23 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     private void createChannels() {
         NotificationManagerCompat manager = NotificationManagerCompat.from(this);
         manager.deleteNotificationChannel(OLD_STATUS_CHANNEL);
+        createChannel(manager, QUIET_CHANNEL, NotificationManagerCompat.IMPORTANCE_MIN, "quietChannel", false);
+        createChannel(manager, RIDE_CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW, "rideChannel", false);
+        createChannel(manager, ALERT_CHANNEL, NotificationManagerCompat.IMPORTANCE_DEFAULT, "alertChannel", true);
+    }
+
+    /**
+     * Creates a channel, or renames it in the texts of now. Android refuses a channel with no name: with no text for
+     * it, as in settings saved by an earlier version, a channel keeps the name it has, and a new one takes the app's.
+     */
+    private void createChannel(NotificationManagerCompat manager, String id, int importance, String key, boolean badge) {
+        String name = text(key);
+        if (name.isEmpty()) {
+            if (manager.getNotificationChannelCompat(id) != null) return;
+            name = getString(R.string.app_name);
+        }
         manager.createNotificationChannel(
-            new NotificationChannelCompat.Builder(QUIET_CHANNEL, NotificationManagerCompat.IMPORTANCE_MIN)
-                .setName(text("quietChannel"))
-                .setShowBadge(false)
-                .build()
-        );
-        manager.createNotificationChannel(
-            new NotificationChannelCompat.Builder(RIDE_CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW)
-                .setName(text("rideChannel"))
-                .setShowBadge(false)
-                .build()
-        );
-        manager.createNotificationChannel(
-            new NotificationChannelCompat.Builder(ALERT_CHANNEL, NotificationManagerCompat.IMPORTANCE_DEFAULT)
-                .setName(text("alertChannel"))
-                .build()
+            new NotificationChannelCompat.Builder(id, importance).setName(name).setShowBadge(badge).build()
         );
     }
 

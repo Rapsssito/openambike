@@ -45,6 +45,12 @@ describe('auto-connect', () => {
         const { texts } = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: false });
         expect(texts.looking).toBe('Buscando tu bici');
         expect(texts.pausedParked).toContain('15 min parada');
+        // Android refuses a channel with no name, and the service makes every channel when it starts.
+        expect(texts).toMatchObject({
+            quietChannel: expect.any(String),
+            alertChannel: expect.any(String),
+            rideChannel: 'Rutas',
+        });
     });
 
     test('auto-unlock goes to the service only with auto-lock', () => {

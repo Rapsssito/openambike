@@ -71,6 +71,8 @@ export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, 
             title: t('app.name'),
             quietChannel: t('autoConnect.quietChannel'),
             alertChannel: t('autoConnect.alertChannel'),
+            // Every channel is made whenever the service starts, the ride's too.
+            rideChannel: t('rides.channel'),
             looking: t('autoConnect.looking'),
             connected: t('autoConnect.connected'),
             connectedLocked: t('autoConnect.connectedLocked'),
