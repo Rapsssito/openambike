@@ -55,6 +55,7 @@ The app's own commands are in [app/DEVELOPMENT.md](app/DEVELOPMENT.md); the reve
 - A paragraph or a list item is one line in Markdown, never wrapped by hand. A file meant to be read through opens with a table of contents.
 - Documentation describes the system as it is, not how it got there: no build diaries or dates of deciding. What is left to do goes in [docs/roadmap.md](docs/roadmap.md).
 - Code, tests and scripts never read Markdown files: what a check needs is written in the code.
+- Tests never hold a text of the interface as a literal: they take it from `app/src/i18n/*.json` or through `t()`, so a change of wording or of language changes no test.
 - Files for people (`README.md`, `app/DEVELOPMENT.md`, this file, `docs/`) explain; files for AI agents (`AGENTS.md`) instruct, and point to the files for people rather than repeat them. A rule that binds everyone goes in a file for people.
 
 ## AI agents

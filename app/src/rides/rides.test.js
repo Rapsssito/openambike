@@ -1,5 +1,5 @@
 import { ASI_ODOMETER, CHARACTERISTIC, decodeAsiMetrics } from '../ble/protocol.js';
-import { setLanguage } from '../i18n/i18n.js';
+import { setLanguage, t } from '../i18n/i18n.js';
 import { fakeClient } from '../test-support/fake-client.js';
 import { fakePlugin } from '../test-support/fake-plugin.js';
 import { RIDE_ID, rideFile } from '../test-support/ride-file.js';
@@ -36,7 +36,11 @@ describe('rides', () => {
         expect(view.getUint32(odometer.offset, true) / odometer.perKm).toBe(decodeAsiMetrics(frame).odometerKm);
         expect(distance).toEqual({ kmPerUnit: 1.609344, unit: 'mi' });
         expect(rideConfig('km').distance).toEqual({ kmPerUnit: 1, unit: 'km' });
-        expect(texts).toMatchObject({ rideChannel: 'Rides', pause: 'Pause', resume: 'Resume' });
+        expect(texts).toMatchObject({
+            rideChannel: t('rides.channel'),
+            pause: t('rides.pause'),
+            resume: t('rides.resume'),
+        });
     });
 
     test('a ride that grows is read from where it was left', async () => {

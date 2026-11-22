@@ -1,6 +1,7 @@
 import { AUTO_CONNECT_THRESHOLDS, autoConnectConfig, createAutoConnect } from './auto-connect.js';
 import { CHARACTERISTIC } from './ble/protocol.js';
-import { setLanguage } from './i18n/i18n.js';
+import es from './i18n/es.json' with { type: 'json' };
+import { setLanguage, t } from './i18n/i18n.js';
 import { fakeClient } from './test-support/fake-client.js';
 import { rideConfig } from './rides/rides.js';
 import { fakePlugin } from './test-support/fake-plugin.js';
@@ -43,13 +44,13 @@ describe('auto-connect', () => {
     test('the notifications are in the language of the app', () => {
         setLanguage('es');
         const { texts } = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: true });
-        expect(texts.looking).toBe('Bloqueo automático activado');
-        expect(texts.pausedParked).toContain('15 min parada');
+        expect(texts.looking).toBe(es['autoConnect.onLock']);
+        expect(texts.pausedParked).toBe(es['autoConnect.pausedParked'].replace('{minutes}', '15'));
         // Android refuses a channel with no name, and the service makes every channel when it starts.
         expect(texts).toMatchObject({
             quietChannel: expect.any(String),
             alertChannel: expect.any(String),
-            rideChannel: 'Rutas',
+            rideChannel: es['rides.channel'],
         });
     });
 
@@ -57,14 +58,13 @@ describe('auto-connect', () => {
         setLanguage('en');
         const looking = (/** @type {object} */ options) =>
             autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: false, ...options }).texts.looking;
-        expect(looking({ autoLock: true })).toBe('Auto-lock on');
-        expect(looking({ autoLock: true, autoUnlock: true })).toBe('Auto-lock and auto-unlock on');
-        expect(looking({ autoRide: true })).toBe('Auto-ride on');
-        expect(looking({ autoRide: true, autoUnlock: true })).toBe('Auto-ride on');
-        expect(looking({ autoLock: true, autoRide: true })).toBe('Auto-lock and auto-ride on');
-        expect(looking({ autoLock: true, autoUnlock: true, autoRide: true })).toBe(
-            'Auto-lock, auto-unlock and auto-ride on'
-        );
+        expect(looking({ autoLock: true })).toBe(t('autoConnect.onLock'));
+        expect(looking({ autoLock: true, autoUnlock: true })).toBe(t('autoConnect.onLockUnlock'));
+        expect(looking({ autoRide: true })).toBe(t('autoConnect.onRide'));
+        // Auto-unlock goes only with auto-lock.
+        expect(looking({ autoRide: true, autoUnlock: true })).toBe(t('autoConnect.onRide'));
+        expect(looking({ autoLock: true, autoRide: true })).toBe(t('autoConnect.onLockRide'));
+        expect(looking({ autoLock: true, autoUnlock: true, autoRide: true })).toBe(t('autoConnect.onLockUnlockRide'));
     });
 
     test('auto-unlock goes to the service only with auto-lock', () => {
@@ -112,7 +112,7 @@ describe('auto-connect', () => {
             autoLock: true,
             autoUnlock: true,
             autoRide: true,
-            texts: { looking: 'Bloqueo, desbloqueo y ruta automáticos activados' },
+            texts: { looking: es['autoConnect.onLockUnlockRide'] },
             ride: { texts: { riding: expect.any(String) } },
         });
         await autoConnect.disable();
