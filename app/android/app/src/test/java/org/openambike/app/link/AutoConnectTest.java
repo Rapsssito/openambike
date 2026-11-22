@@ -142,7 +142,7 @@ public class AutoConnectTest {
         signal(-60, 30_000);
         signal(-90, 5_500);
         assertEquals(List.of("lock"), actions.done.subList(actions.done.size() - 1, actions.done.size()));
-        auto.lockDone(true);
+        auto.lockDone(true, now);
         assertTrue(actions.did("disconnect"));
         auto.linkDown(now);
         assertEquals(AutoConnect.State.IDLE, auto.state());
@@ -181,6 +181,80 @@ public class AutoConnectTest {
     }
 
     @Test
+    public void walkingAwayRightAfterConnectingLocksWithoutWaitingForTheRideGuard() {
+        connectedInBackground();
+        auto.lockState(false);
+        signal(-90, settings.farMs + 1_000);
+        assertTrue(actions.did("lock"));
+    }
+
+    @Test
+    public void aConnectionJustMadeIsNotTakenForAParkedBike() {
+        connectedInBackground();
+        signal(-60, 60_000);
+        assertFalse(actions.did("lock"));
+        assertFalse(actions.did("disconnect"));
+    }
+
+    @Test
+    public void theHistorySaysWhatItDidAndWhyNewestFirst() {
+        connectedInBackground();
+        auto.lockState(false);
+        signal(-60, 5_000);
+        auto.moved(now);
+        signal(-90, settings.farMs + 1_000);
+        signal(-90, settings.rideGuardMs);
+        auto.lockDone(true, now);
+        List<AutoConnect.Event> events = new java.util.ArrayList<>();
+        for (AutoConnect.Entry entry : auto.history()) events.add(entry.event);
+        assertEquals(
+            List.of(
+                AutoConnect.Event.LOCKED,
+                AutoConnect.Event.LOCKING_AWAY,
+                AutoConnect.Event.WAITING_MOVED,
+                AutoConnect.Event.CONNECTING
+            ),
+            events
+        );
+        assertEquals(-90, auto.history().get(1).value);
+        assertEquals(-60, auto.history().get(3).value);
+    }
+
+    @Test
+    public void withTheAppOnScreenThePreviewShowsTheTimersAndNothingIsDone() {
+        auto.setForeground(true, now);
+        auto.start(now);
+        auto.linkUp(now);
+        auto.lockState(false);
+        auto.moved(now);
+        signal(-90, 10_000);
+        AutoConnect.Preview preview = auto.preview(now);
+        assertEquals(AutoConnect.State.APP, preview.state);
+        assertEquals(-90, preview.signalDbm, 0.01);
+        assertEquals(Integer.valueOf(-90), preview.signalNowDbm);
+        assertTrue(preview.signalSettled);
+        assertEquals(settings.rideGuardMs - 10_000, preview.guardLeftMs);
+        assertEquals(settings.parkedMs - 10_000, preview.parkedLeftMs);
+        assertFalse(actions.did("lock"));
+        assertTrue(auto.history().isEmpty());
+    }
+
+    @Test
+    public void oneDeepDipInThreeDoesNotLockForTheMedianDecides() {
+        connectedInBackground();
+        auto.lockState(false);
+        // Two readings in three near, one far below, as the rider's body blocks the phone: the mean is about -90 dBm,
+        // below the far threshold, but the median is -70.
+        for (long end = now + 30_000, i = 0; now < end; now += 500, i++) {
+            auto.rssi(i % 3 == 0 ? -130 : -70, now);
+            auto.tick(now);
+        }
+        assertFalse(actions.did("lock"));
+        signal(-90, settings.farMs + 1_000);
+        assertTrue(actions.did("lock"));
+    }
+
+    @Test
     public void aWallForAMomentDoesNotLock() {
         connectedInBackground();
         signal(-60, 31_000);
@@ -194,7 +268,7 @@ public class AutoConnectTest {
         connectedInBackground();
         signal(-60, 15 * 60_000 + 1_000);
         assertTrue(actions.did("lock"));
-        auto.lockDone(true);
+        auto.lockDone(true, now);
         auto.linkDown(now);
         assertEquals(AutoConnect.State.PAUSED, auto.state());
         assertTrue(actions.did("alert PAUSED_PARKED"));
@@ -209,7 +283,7 @@ public class AutoConnectTest {
     public void aPauseForStandingNearEndsOnceTheRiderHasLeftForAMinute() {
         connectedInBackground();
         signal(-60, 15 * 60_000 + 1_000);
-        auto.lockDone(true);
+        auto.lockDone(true, now);
         auto.linkDown(now);
         assertEquals(AutoConnect.State.PAUSED, auto.state());
         assertTrue(actions.did("scan slow"));
@@ -225,7 +299,7 @@ public class AutoConnectTest {
     @Test
     public void aPauseOfTheRiderDoesNotEndByItself() {
         connectedInBackground();
-        auto.userDisconnected();
+        auto.userDisconnected(now);
         auto.linkDown(now);
         for (long end = now + 10 * 60_000; now < end; now += 500) auto.tick(now);
         assertEquals(AutoConnect.State.PAUSED, auto.state());
@@ -245,7 +319,7 @@ public class AutoConnectTest {
         connectedInBackground();
         signal(-60, 31_000);
         signal(-90, 5_500);
-        auto.lockDone(false);
+        auto.lockDone(false, now);
         assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
         assertTrue(actions.did("disconnect"));
     }
@@ -253,7 +327,7 @@ public class AutoConnectTest {
     @Test
     public void theRiderDisconnectingPausesItUntilResumed() {
         connectedInBackground();
-        auto.userDisconnected();
+        auto.userDisconnected(now);
         auto.linkDown(now);
         assertEquals(AutoConnect.State.PAUSED, auto.state());
         assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
@@ -268,6 +342,7 @@ public class AutoConnectTest {
         auto.linkUp(now);
         auto.setForeground(false, now);
         assertEquals(AutoConnect.State.CONNECTED, auto.state());
+        assertEquals(AutoConnect.Event.TOOK_OVER, auto.history().get(0).event);
         auto.lockState(false);
         signal(-90, 31_000);
         assertTrue(actions.did("lock"));

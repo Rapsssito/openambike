@@ -9,6 +9,26 @@ import { rideConfig } from './rides/rides.js';
 /** @typedef {import('./ble/native-client.js').BikeLinkPlugin} BikeLinkPlugin */
 
 /**
+ * What auto-connect does, as the service says it: where its timers stand, also while the app is on screen and holds
+ * the connection, and its history, newest first.
+ * @typedef {object} Activity
+ * @property {boolean} running
+ * @property {'OFF' | 'APP' | 'IDLE' | 'NEAR' | 'CONNECTING' | 'CONNECTED' | 'LEAVING' | 'PAUSED'} [state]
+ * @property {boolean} [connected] whether the bike is connected and accepted the key, whoever connected it
+ * @property {boolean} [locked] the bike's lock, when known
+ * @property {boolean} [lockHeld] whether the rider's own lock holds against auto-unlock
+ * @property {number} [nearDbm] near the bike, before connecting: the advertising's median
+ * @property {number} [nearForMs] and for how long it has been heard near
+ * @property {number} [signalDbm] connected: the connection signal's median over the far time
+ * @property {boolean} [signalSettled] whether readings cover all of the far time
+ * @property {number} [signalNowDbm] connected: its latest reading
+ * @property {number} [movedAgoMs] since the bike last reported movement, if it has
+ * @property {number} [guardLeftMs] how long the ride guard still holds a lock back
+ * @property {number} [parkedLeftMs] how long until a bike standing still near is let go
+ * @property {{ at: number, event: string, value: number }[]} [history] `at` in milliseconds since 1970
+ */
+
+/**
  * The automatic options, as the rider sets them: auto-lock only with auto-connect, auto-unlock only with auto-lock,
  * auto-ride only with auto-connect.
  * @typedef {{ autoLock: boolean, autoUnlock: boolean, autoRide: boolean }} Automatic
@@ -19,11 +39,11 @@ import { rideConfig } from './rides/rides.js';
  * docs/roadmap.md, "Auto-connect, auto-lock and rides").
  */
 export const AUTO_CONNECT_THRESHOLDS = Object.freeze({
-    /** Connects once the bike's advertising averages above this for `nearMs`: about 1.5 m, phone in a pocket. */
+    /** Connects once the median of the bike's advertising over `nearMs` is above this: about 1.5 m, phone in a pocket. */
     nearDbm: -72,
     nearMs: 10_000,
     /**
-     * Lets go once the connection's signal averages below this for `farMs`: about 4 to 5 m, early enough to lock
+     * Lets go once the median of the connection's signal over `farMs` is below this: about 4 to 5 m, early enough to lock
      * before the link drops at walking pace with the rider's body between phone and bike; a wall (-80 dBm) does not.
      */
     farDbm: -80,
@@ -41,6 +61,16 @@ export const AUTO_CONNECT_THRESHOLDS = Object.freeze({
  * @returns {string}
  */
 const hex = (bytes) => toHex(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+
+/**
+ * What the notification says while auto-connect waits for the bike: which of the automatic options are on.
+ * @param {{ autoLock: boolean, autoUnlock: boolean, autoRide: boolean }} options auto-unlock only with auto-lock
+ */
+export function onText({ autoLock, autoUnlock, autoRide }) {
+    if (!autoLock) return t('autoConnect.onRide');
+    if (autoUnlock) return t(autoRide ? 'autoConnect.onLockUnlockRide' : 'autoConnect.onLockUnlock');
+    return t(autoRide ? 'autoConnect.onLockRide' : 'autoConnect.onLock');
+}
 
 /**
  * What the service runs auto-connect with.
@@ -73,7 +103,8 @@ export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, 
             alertChannel: t('autoConnect.alertChannel'),
             // Every channel is made whenever the service starts, the ride's too.
             rideChannel: t('rides.channel'),
-            looking: t('autoConnect.looking'),
+            // Waiting for the bike, it says what is on, which is why auto-connect runs.
+            looking: onText({ autoLock, autoUnlock: autoLock && autoUnlock, autoRide }),
             connected: t('autoConnect.connected'),
             connectedLocked: t('autoConnect.connectedLocked'),
             connectedUnlocked: t('autoConnect.connectedUnlocked'),
@@ -169,6 +200,10 @@ export function createAutoConnect(plugin) {
         /** @returns {Promise<boolean>} whether location "all the time" is granted, asking nothing */
         async hasBackgroundLocation() {
             return (await plugin.getBackgroundLocation()).granted;
+        },
+        /** @returns {Promise<Activity>} */
+        async activity() {
+            return JSON.parse((await plugin.getAutoConnectActivity()).activity);
         },
         /** The rider disconnected: auto-connect waits until they connect again. */
         async pause() {

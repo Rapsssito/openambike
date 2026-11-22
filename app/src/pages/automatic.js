@@ -1,12 +1,13 @@
 // The automatic options, auto-lock, auto-unlock and auto-ride: settings of the phone that the app's native service keeps
 // (Android only), shown in Settings, with or without a bike connected. Auto-connect has no switch of its own: it runs
 // while auto-lock or auto-ride is on, which need it, and stops once both are off.
-import { bicycle, bluetooth, lockClosed, lockOpen, warning } from 'ionicons/icons';
+import { bicycle, bluetooth, lockClosed, lockOpen, pulse, warning } from 'ionicons/icons';
 
 import { needsAutoConnect } from '../auto-connect.js';
 import { t } from '../i18n/i18n.js';
+import { describeActivity } from './activity.js';
 import { describeError } from './errors.js';
-import { actionRow, confirmAction, section, showToast, switchRow } from './ui.js';
+import { actionRow, confirmAction, el, fold, section, showToast, switchRow } from './ui.js';
 
 /** @typedef {import('../storage/key-store.js').KeyStore} KeyStore */
 /** @typedef {import('../auto-connect.js').AutoConnect} AutoConnect */
@@ -21,11 +22,10 @@ const NONE = Object.freeze({ autoLock: false, autoUnlock: false, autoRide: false
  * @param {AutoConnect | null} options.autoConnect on Android only
  * @param {KeyStore} options.keyStore
  * @param {() => string | null} options.address the Bluetooth address of the bike auto-connect connects to
- * @param {HTMLElement[]} [options.rows] more rows, shown only while auto-connect runs
  * @param {(enabled: boolean) => void} [options.onShow] called whenever it shows whether auto-connect runs
- * @returns {{ element: HTMLElement, stop: () => void }} `stop` ends its watch of the app coming back on screen
+ * @returns {{ element: HTMLElement, stop: () => void }} `stop` ends its watch of the app and of the activity
  */
-export function automaticSection({ autoConnect, keyStore, address, rows = [], onShow }) {
+export function automaticSection({ autoConnect, keyStore, address, onShow }) {
     /** @type {Automatic} */
     let automatic = NONE;
     const unavailable = autoConnect ? undefined : t('more.needsApp');
@@ -35,7 +35,8 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
         autoUnlockRow.set(automatic.autoUnlock);
         autoRideRow.set(automatic.autoRide);
         autoUnlockRow.element.hidden = !automatic.autoLock;
-        for (const row of rows) row.hidden = !enabled;
+        activityFold.hidden = !enabled;
+        if (!enabled) activityFold.open = false;
         if (onShow) onShow(enabled);
         checkRideLocation();
     };
@@ -129,11 +130,56 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
         },
     });
     autoUnlockRow.element.hidden = true;
+
+    // The activity, folded: what auto-connect does now and where its timers stand, read every second while open and on
+    // screen, and its history.
+    const nowList = el('div');
+    const historyList = el('div');
+    /** @param {string} first @param {string} second */
+    const line = (first, second) =>
+        el('div', { class: 'fold-line' }, [el('span', {}, [first]), el('span', {}, [second])]);
+    const readActivity = async () => {
+        if (!autoConnect || document.visibilityState !== 'visible') return;
+        const activity = await autoConnect.activity().catch(() => null);
+        if (!activity) return;
+        const { now, history } = describeActivity(activity, automatic);
+        nowList.replaceChildren(...now.map(({ label, value }) => line(label, value)));
+        historyList.replaceChildren(
+            ...(history.length > 0
+                ? history.map(({ time, text }) => line(time, text))
+                : [el('div', { class: 'fold-line' }, [t('activity.none')])])
+        );
+    };
+    /** @type {ReturnType<typeof setInterval> | null} */
+    let activityTimer = null;
+    const stopActivity = () => {
+        if (activityTimer !== null) clearInterval(activityTimer);
+        activityTimer = null;
+    };
+    const activityFold = fold({
+        iconName: pulse,
+        label: t('activity.title'),
+        detail: t('activity.detail'),
+        content: [
+            el('p', { class: 'fold-heading' }, [t('activity.now')]),
+            nowList,
+            el('p', { class: 'fold-heading' }, [t('activity.history')]),
+            historyList,
+        ],
+        onToggle: (open) => {
+            stopActivity();
+            if (!open) return;
+            readActivity();
+            activityTimer = setInterval(readActivity, 1000);
+        },
+    });
+    activityFold.hidden = true;
+
     // Indented under what they depend on: auto-unlock under auto-lock, the warning about location under auto-ride.
     for (const row of [autoUnlockRow.element, rideLocationRow]) row.classList.add('sub-option');
     const element = section(
         t('more.automatic'),
-        [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, rideLocationRow, ...rows],
+        [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, rideLocationRow, activityFold],
         { iconName: bluetooth }
     );
     if (autoConnect) {
@@ -149,7 +195,10 @@ export function automaticSection({ autoConnect, keyStore, address, rows = [], on
         autoLockRow.set(false);
         autoRideRow.set(false);
         autoUnlockRow.element.hidden = true;
-        for (const row of rows) row.hidden = true;
     }
-    return { element, stop: () => document.removeEventListener('visibilitychange', onVisible) };
+    const stop = () => {
+        document.removeEventListener('visibilitychange', onVisible);
+        stopActivity();
+    };
+    return { element, stop };
 }

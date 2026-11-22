@@ -285,6 +285,41 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     }
 
     /**
+     * What auto-connect does, for the app's Settings: whether it runs, where its timers stand, and its history, newest
+     * first, each event with its time in milliseconds since 1970. Called on the link's thread.
+     */
+    JSONObject autoConnectActivity() throws JSONException {
+        JSONObject result = new JSONObject();
+        if (auto == null) return result.put("running", false);
+        long now = now();
+        long wall = System.currentTimeMillis();
+        AutoConnect.Preview preview = auto.preview(now);
+        result.put("running", true)
+            .put("state", preview.state.name())
+            .put("connected", preview.connected)
+            .put("lockHeld", preview.lockHeld)
+            .put("nearForMs", preview.nearForMs)
+            .put("signalSettled", preview.signalSettled)
+            .put("guardLeftMs", preview.guardLeftMs)
+            .put("parkedLeftMs", preview.parkedLeftMs);
+        if (preview.locked != null) result.put("locked", preview.locked);
+        if (preview.nearDbm != null) result.put("nearDbm", Math.round(preview.nearDbm));
+        if (preview.signalDbm != null) result.put("signalDbm", Math.round(preview.signalDbm));
+        if (preview.signalNowDbm != null) result.put("signalNowDbm", preview.signalNowDbm);
+        if (preview.movedAgoMs != null) result.put("movedAgoMs", preview.movedAgoMs);
+        JSONArray history = new JSONArray();
+        for (AutoConnect.Entry entry : auto.history()) {
+            history.put(
+                new JSONObject()
+                    .put("at", wall - (now - entry.at))
+                    .put("event", entry.event.name())
+                    .put("value", entry.value)
+            );
+        }
+        return result.put("history", history);
+    }
+
+    /**
      * The automatic options a backup brought back, as {@code { autoLock, autoUnlock, autoRide }}, while auto-connect has
      * no settings of this phone: the app turns it on again with them at its next connection. Null otherwise.
      */
@@ -312,7 +347,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     void pauseAutoConnect() {
         if (link == null) return;
         link.post(() -> {
-            if (auto != null) auto.userDisconnected();
+            if (auto != null) auto.userDisconnected(now());
         });
     }
 
@@ -695,7 +730,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     public void lock() {
         AutoConnectConfig.Exchange lock = config.lock;
         link.write(config.address, lock.service, lock.characteristic, lock.value, (value, error) -> {
-            if (auto != null) auto.lockDone(error == null);
+            if (auto != null) auto.lockDone(error == null, now());
         });
     }
 
@@ -908,7 +943,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
                 else if (auto != null) auto.linkUp(now());
             } else if (authenticating) {
                 // The bike refused the key: auto-connect waits for the app rather than try it again and again.
-                if (auto != null) auto.userDisconnected();
+                if (auto != null) auto.userDisconnected(now());
                 authFailed();
             }
         } else if (auto != null && characteristic.equals(config.movement.characteristic)) {

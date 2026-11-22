@@ -15,7 +15,6 @@ import {
     logoGithub,
     moon,
     options,
-    radio,
     refresh,
     swapHorizontal,
     trash,
@@ -120,7 +119,6 @@ export function settingsPage({
     bikeAddress = () => null,
     hasKey = true,
 }) {
-    const connected = session !== null;
     // Information.
     const firmware = valueRow(t('more.firmware'), hardwareChip);
     const motorFirmware = valueRow(t('more.motorFirmware'), construct);
@@ -153,30 +151,17 @@ export function settingsPage({
 
     const disconnectRow = actionRow({ iconName: logOut, label: t('more.disconnect'), onClick: onDisconnect });
 
-    // The automatic options, and while auto-connect is on, the connection's signal strength, to check its thresholds
-    // against it (docs/roadmap.md). Disconnecting pauses auto-connect, and says so while it is on.
-    const signal = valueRow(t('more.signal'), radio);
+    // The automatic options, with auto-connect's activity folded under them, where the connection's signal shows to
+    // check its thresholds against (docs/roadmap.md). Disconnecting pauses auto-connect, and says so while it runs.
     const automatic = automaticSection({
         autoConnect,
         keyStore,
         address: () => (session ? session.bike.deviceId : bikeAddress()),
-        rows: connected ? [signal.element] : [],
         onShow: (enabled) => {
             const disconnectLabel = disconnectRow.querySelector('.row-label');
             if (disconnectLabel) disconnectLabel.textContent = t(enabled ? 'more.disconnectPause' : 'more.disconnect');
         },
     });
-    /** @type {ReturnType<typeof setInterval> | null} */
-    let signalTimer = null;
-    if (autoConnect && session) {
-        signalTimer = setInterval(() => {
-            if (signal.element.hidden || !session.state.connected) return;
-            autoConnect
-                .readRssi(session.bike.deviceId)
-                .then((value) => signal.set(t('signal.dbm', { value: String(value) })))
-                .catch(() => undefined);
-        }, 2000);
-    }
 
     // Maintenance: each action is confirmed first, with what it does.
     /**
@@ -283,9 +268,6 @@ export function settingsPage({
     ];
     const element = page(t('more.title'), content, status);
     if (session) render(session.state);
-    const stop = () => {
-        automatic.stop();
-        if (signalTimer !== null) clearInterval(signalTimer);
-    };
+    const stop = () => automatic.stop();
     return { element, content, render, stop };
 }

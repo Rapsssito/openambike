@@ -1021,6 +1021,31 @@ ion-toast.toast-error {
     color: var(--app-muted);
 }
 
+.fold-body {
+    padding: 0 16px 12px;
+}
+
+.fold-heading {
+    margin: 8px 0 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--app-muted);
+}
+
+.fold-line {
+    display: flex;
+    gap: 12px;
+    padding: 4px 0;
+    font-size: 0.85rem;
+}
+
+.fold-line > :first-child {
+    flex: 0 0 auto;
+    min-width: 5.5rem;
+    color: var(--app-muted);
+    font-variant-numeric: tabular-nums;
+}
+
 .disclosure-text {
     margin: 0;
     padding: 0 16px 16px;

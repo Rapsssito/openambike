@@ -10,22 +10,25 @@ import { card, el, icon, openSheet, section, showToast, valueRow } from './ui.js
 
 /** @typedef {import('../ble/bike.js').BleClientLike} BleClientLike */
 
-/** The time over which the average and the number of readings are taken. */
+/** The time over which the median and the number of readings are taken. */
 export const SIGNAL_WINDOW_MS = 5000;
 
 /**
- * The latest reading, and the average and number of the readings of the last `windowMs`.
+ * The latest reading, and the median and number of the readings of the last `windowMs`, the median as auto-connect
+ * decides on it: the mean of the middle two for an even number.
  * @param {{ at: number, rssi: number }[]} readings oldest first
  * @param {number} now
  * @param {number} [windowMs]
- * @returns {{ latest: number | null, average: number | null, count: number }}
+ * @returns {{ latest: number | null, median: number | null, count: number }}
  */
 export function signalStats(readings, now, windowMs = SIGNAL_WINDOW_MS) {
     const recent = readings.filter((reading) => now - reading.at <= windowMs);
     const latest = readings.at(-1)?.rssi ?? null;
-    if (recent.length === 0) return { latest, average: null, count: 0 };
-    const average = recent.reduce((sum, reading) => sum + reading.rssi, 0) / recent.length;
-    return { latest, average: Math.round(average), count: recent.length };
+    if (recent.length === 0) return { latest, median: null, count: 0 };
+    const sorted = recent.map((reading) => reading.rssi).sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    return { latest, median: Math.round(median), count: recent.length };
 }
 
 /**
@@ -45,9 +48,9 @@ export async function openSignalTest(client) {
             // Readings older than the window are dropped, so that the list does not grow while the test runs.
             bike.readings = bike.readings.filter((reading) => now - reading.at <= SIGNAL_WINDOW_MS);
             const stats = signalStats(bike.readings, now);
-            const [, latest, average, count] = bike.rows;
+            const [, latest, median, count] = bike.rows;
             latest.set(dbm(stats.latest));
-            average.set(dbm(stats.average));
+            median.set(dbm(stats.median));
             count.set(String(stats.count));
         }
     };
@@ -86,7 +89,7 @@ export async function openSignalTest(client) {
                     const rows = [
                         valueRow(t('signal.address')),
                         valueRow(t('signal.now')),
-                        valueRow(t('signal.average')),
+                        valueRow(t('signal.median')),
                         valueRow(t('signal.readings')),
                     ];
                     rows[0].set(found.deviceId);

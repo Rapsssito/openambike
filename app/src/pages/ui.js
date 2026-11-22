@@ -519,6 +519,30 @@ export function disclosure(title, detail, text) {
 }
 
 /**
+ * A row that opens to show more, closed at first, such as details few riders need.
+ * @param {{ iconName: string, label: string, detail?: string, content: Node[], onToggle?: (open: boolean) => void }}
+ *     options
+ * @returns {HTMLDetailsElement}
+ */
+export function fold({ iconName, label, detail, content, onToggle }) {
+    const element = /** @type {HTMLDetailsElement} */ (
+        el('details', { class: 'row disclosure' }, [
+            el('summary', {}, [
+                icon(iconName, { class: 'row-icon' }),
+                el('span', { class: 'row-label' }, [
+                    label,
+                    ...(detail ? [el('span', { class: 'row-detail' }, [detail])] : []),
+                ]),
+                icon(chevronForward, { class: 'row-chevron' }),
+            ]),
+            el('div', { class: 'fold-body' }, content),
+        ])
+    );
+    if (onToggle) element.addEventListener('toggle', () => onToggle(element.open));
+    return element;
+}
+
+/**
  * Opens a full-height sheet over the screen, with a title and a close button.
  * @param {string} title
  * @param {(Node | string)[]} content

@@ -282,6 +282,20 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
         });
     }
 
+    /** What auto-connect does: where its timers stand and its history, as JSON text in {@code activity}. */
+    @PluginMethod
+    public void getAutoConnectActivity(PluginCall call) {
+        withLink(call, (link) -> link.post(() -> {
+            try {
+                JSObject result = new JSObject();
+                result.put("activity", service.autoConnectActivity().toString());
+                call.resolve(result);
+            } catch (org.json.JSONException impossible) {
+                call.reject("The activity could not be read.");
+            }
+        }));
+    }
+
     /** Turns auto-connect on with {@code config}, asking first to show notifications, or off without it. */
     @PluginMethod
     public void setAutoConnect(PluginCall call) {

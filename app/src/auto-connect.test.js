@@ -42,8 +42,8 @@ describe('auto-connect', () => {
 
     test('the notifications are in the language of the app', () => {
         setLanguage('es');
-        const { texts } = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: false });
-        expect(texts.looking).toBe('Buscando tu bici');
+        const { texts } = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: true });
+        expect(texts.looking).toBe('Bloqueo automático activado');
         expect(texts.pausedParked).toContain('15 min parada');
         // Android refuses a channel with no name, and the service makes every channel when it starts.
         expect(texts).toMatchObject({
@@ -51,6 +51,20 @@ describe('auto-connect', () => {
             alertChannel: expect.any(String),
             rideChannel: 'Rutas',
         });
+    });
+
+    test('waiting for the bike, the notification says which automatic options are on', () => {
+        setLanguage('en');
+        const looking = (/** @type {object} */ options) =>
+            autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: false, ...options }).texts.looking;
+        expect(looking({ autoLock: true })).toBe('Auto-lock on');
+        expect(looking({ autoLock: true, autoUnlock: true })).toBe('Auto-lock and auto-unlock on');
+        expect(looking({ autoRide: true })).toBe('Auto-ride on');
+        expect(looking({ autoRide: true, autoUnlock: true })).toBe('Auto-ride on');
+        expect(looking({ autoLock: true, autoRide: true })).toBe('Auto-lock and auto-ride on');
+        expect(looking({ autoLock: true, autoUnlock: true, autoRide: true })).toBe(
+            'Auto-lock, auto-unlock and auto-ride on'
+        );
     });
 
     test('auto-unlock goes to the service only with auto-lock', () => {
@@ -98,7 +112,7 @@ describe('auto-connect', () => {
             autoLock: true,
             autoUnlock: true,
             autoRide: true,
-            texts: { looking: 'Buscando tu bici' },
+            texts: { looking: 'Bloqueo, desbloqueo y ruta automáticos activados' },
             ride: { texts: { riding: expect.any(String) } },
         });
         await autoConnect.disable();
@@ -138,6 +152,12 @@ describe('auto-connect', () => {
         plugin.restored = JSON.stringify({ autoLock: false, autoUnlock: false, autoRide: false });
         expect(await autoConnect.refresh({ address: ADDRESS, key: KEY })).toEqual({ restored: false, autoRide: false });
         expect((await autoConnect.status()).enabled).toBe(false);
+    });
+
+    test("auto-connect's activity is read from the service", async () => {
+        const plugin = fakePlugin(fakeClient());
+        plugin.activity = { running: true, state: 'IDLE', history: [] };
+        expect(await createAutoConnect(plugin).activity()).toEqual({ running: true, state: 'IDLE', history: [] });
     });
 
     test('pausing and the connection signal go to the service', async () => {

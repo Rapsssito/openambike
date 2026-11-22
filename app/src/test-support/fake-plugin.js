@@ -95,6 +95,9 @@ export function fakePlugin(fake) {
         pauseAutoConnect: async () => {
             plugin.paused = true;
         },
+        /** What the service says auto-connect does, as src/auto-connect.js reads it. */
+        activity: /** @type {object} */ ({ running: false }),
+        getAutoConnectActivity: async () => ({ activity: JSON.stringify(plugin.activity) }),
         /** Whether the rider's lock holds, as the service keeps it. */
         lockHeld: false,
         /** @param {{ held: boolean }} options */
