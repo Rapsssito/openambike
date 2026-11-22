@@ -2,6 +2,7 @@
 // the battery's health (pack temperatures, charge cycles, energy and capacity against the rated capacity), and the
 // rest.
 import {
+    barcode,
     batteryCharging,
     batteryFull,
     create,
@@ -24,14 +25,15 @@ import {
 import { t } from '../i18n/i18n.js';
 import { loadRatedWh, saveRatedWh } from '../preferences.js';
 import { isCharging } from '../session.js';
+import { iotField } from './bike-details.js';
 import { number } from './format.js';
 import { actionRow, askNumber, card, el, gauge, page, section, showToast, stat, valueRow } from './ui.js';
 
-/** @typedef {import('../session.js').Session} Session */
+/** @typedef {import('../bike-link.js').BikeView} BikeView */
 /** @typedef {import('../session.js').BikeState} BikeState */
 
 /**
- * @param {Session} session
+ * @param {BikeView} session
  * @param {Node} status the connection status shown in the header
  * @returns {{ element: HTMLElement, render: (state: BikeState) => void }}
  */
@@ -47,6 +49,7 @@ export function batteryPage(session, status) {
     const capacity = valueRow(t('battery.capacity'), batteryFull);
     const health = stat(t('battery.healthValue'), heart);
     const firmware = valueRow(t('battery.firmware'), hardwareChip);
+    const serialNumber = valueRow(t('more.batterySerialNumber'), barcode);
 
     // Every known model is rated for 336 Wh; the rider can type another rating, such as a replacement battery's.
     let ratedWh = loadRatedWh() ?? DEFAULT_RATED_WH;
@@ -104,6 +107,8 @@ export function batteryPage(session, status) {
         }
         if (state.batteryCycles !== null) cycles.set(number(state.batteryCycles, 0));
         if (state.batteryFirmwareStatus !== null) firmware.set(state.batteryFirmwareStatus);
+        const serial = iotField(state.iotState, 'battery', 'serial_number');
+        if (serial) serialNumber.set(serial);
     };
 
     const element = page(
@@ -129,7 +134,7 @@ export function batteryPage(session, status) {
                 ],
                 { iconName: heart, footer: t('battery.healthNote', { min: MIN_CHARGE_PERCENT }) }
             ),
-            section(t('battery.details'), [firmware.element]),
+            section(t('battery.details'), [firmware.element, serialNumber.element]),
         ],
         status
     );

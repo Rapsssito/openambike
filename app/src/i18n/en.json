@@ -265,5 +265,10 @@
     "autoConnect.onRide": "Auto-ride on",
     "autoConnect.onLockRide": "Auto-lock and auto-ride on",
     "autoConnect.onLockUnlockRide": "Auto-lock, auto-unlock and auto-ride on",
-    "activity.signalValue": "{now} dBm · median {median}"
+    "activity.signalValue": "{now} dBm · median {median}",
+    "common.connecting": "Connecting",
+    "common.disconnected": "Disconnected",
+    "link.title": "Connection",
+    "link.reconnecting": "Connection lost. Reconnecting…",
+    "link.disconnected": "The bike is not connected."
 }

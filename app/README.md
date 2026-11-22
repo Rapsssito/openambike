@@ -59,7 +59,7 @@ The next time, open a terminal in the `openambike` folder and run only `npm run 
 4. On Android, the first time, the phone asks for a 6-digit code to pair: type the code your bike shows.
 5. The app shows each step (connect, check the key, read the bike), then opens the bike's controls.
 
-The app keeps your key, encrypted, on that phone or computer. On Android, it connects to the same bike by itself every time you open it after that.
+The app keeps your key, encrypted, on that phone or computer. From then on it opens on the bike's controls and, on Android, connects by itself; in a browser, tap "Connect". Tap the connection status at the top to see how it stands, or to disconnect.
 
 ### Record your rides
 
@@ -67,14 +67,14 @@ On Android, the Rides tab records a ride from "Start ride" to "Stop ride": its t
 
 ### Connect, lock and record by itself
 
-On Android, under Settings, "Automatic" (a browser shows them greyed out, since only the Android app keeps working with the app closed). Auto-unlock appears once auto-lock is on. With the bike away, "Settings" on the app's first screen has them too, so that you can turn them off without connecting:
+On Android, under Settings, "Automatic" (a browser shows them greyed out, since only the Android app keeps working with the app closed). Auto-unlock appears once auto-lock is on. Settings works with the bike away too, so that you can turn them off without connecting:
 
 - **Auto-lock** connects to your bike by itself when you are next to it, even with the app closed, and locks it when you walk away from it. It never locks it while it moves, and never unlocks it. If the connection drops before it could lock, a notification says so: check the bike.
 - **Auto-unlock**, with auto-lock on, unlocks your bike when the app connects to it by itself because you came next to it. It does so whenever your phone comes within about 1.5 m, even if you don't mean to ride, as with the bike parked beside your home; it locks again when you walk away. The app asks you to confirm before turning it on. If you lock the bike in the app yourself, it stays locked until you unlock it in the app.
 - **Auto-ride** connects to your bike by itself when you are next to it, even with the app closed, and starts recording a ride once the bike has moved for 20 seconds, even with the app closed, and stops it when you walk away or after 15 minutes standing; the minutes standing are not part of the ride. A ride you start yourself, you stop yourself. Android asks whether the app may use your location "all the time", which gives the rides it starts with the app closed their route; without it, they have the bike's figures and no map, and Settings says so under auto-ride, with a button to allow it.
 - While auto-lock or auto-ride is on, the app connects to your bike by itself when you are next to it and disconnects when you walk away, which we call auto-connect. Android needs it to show a notification, which stays small and silent at the bottom of your notifications; Android asks once whether the app may show notifications.
 - "Activity", under the options, opens to show what auto-lock is doing and why: the signal, how long since the bike moved, when it would lock, and the last things it did, with their times.
-- If the bike stands next to you for 15 minutes, as in a garage beside your home, auto-connect locks it (with auto-lock on), disconnects and pauses, so that the bike can sleep. It turns back on by itself about a minute after you leave, or when you open the app. Disconnecting in the app pauses it too, until you connect again: while auto-lock or auto-ride is on, the button says "Disconnect and pause auto-lock and auto-ride".
+- If the bike stands next to you for 15 minutes, as in a garage beside your home, auto-connect locks it (with auto-lock on), disconnects and pauses, so that the bike can sleep. It turns back on by itself about a minute after you leave, or when you open the app. Disconnecting in the app (tap the connection status at the top) pauses it too, until you connect again: while auto-lock or auto-ride is on, the button says "Disconnect and pause auto-lock and auto-ride".
 
 Tap (i) beside each to read what it does.
 

@@ -88,12 +88,11 @@ const NOTIFIED = [
 ];
 
 /**
- * @param {Bike} bike connected and authenticated
- * @param {{ confirmTimeoutMs?: number }} [options]
+ * The state of a bike before anything is read from it.
+ * @returns {BikeState}
  */
-export function createSession(bike, { confirmTimeoutMs = CONFIRM_TIMEOUT_MS } = {}) {
-    /** @type {BikeState} */
-    let state = {
+export function emptyState() {
+    return {
         connected: false,
         battery: null,
         batteryCycles: null,
@@ -110,6 +109,15 @@ export function createSession(bike, { confirmTimeoutMs = CONFIRM_TIMEOUT_MS } = 
         batteryFirmwareStatus: null,
         iotState: null,
     };
+}
+
+/**
+ * @param {Bike} bike connected and authenticated
+ * @param {{ confirmTimeoutMs?: number }} [options]
+ */
+export function createSession(bike, { confirmTimeoutMs = CONFIRM_TIMEOUT_MS } = {}) {
+    /** @type {BikeState} */
+    let state = emptyState();
     /** @type {Set<(state: BikeState) => void>} */
     const listeners = new Set();
     /** @type {(() => Promise<void>)[]} */

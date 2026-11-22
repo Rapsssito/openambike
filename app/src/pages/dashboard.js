@@ -7,11 +7,12 @@ import { batteryHalf, bulb, flash, lockClosed, map, navigate, person } from 'ion
 
 import { t } from '../i18n/i18n.js';
 import { isCharging } from '../session.js';
+import { bikeDetails } from './bike-details.js';
 import { distance, KM_PER_MILE, number } from './format.js';
 import { rideDetector } from './ride-mode.js';
 import { card, choice, el, gauge, meter, page, readout, send, stat, toggleTile } from './ui.js';
 
-/** @typedef {import('../session.js').Session} Session */
+/** @typedef {import('../bike-link.js').BikeView} BikeView */
 /** @typedef {import('../session.js').BikeState} BikeState */
 /** @typedef {import('../preferences.js').Units} Units */
 /** @typedef {'parked' | 'riding'} View */
@@ -26,13 +27,15 @@ const FULL_POWER_W = 250;
 const TICK_MS = 1000;
 
 /**
- * @param {Session} session
+ * @param {BikeView} session
  * @param {() => Units} units
  * @param {Node} status the connection status shown in the header
- * @param {{ onLockPressed?: (locked: boolean) => void }} [options] told once the bike took a lock or unlock pressed here
+ * @param {{ onLockPressed?: (locked: boolean) => void, onSleep?: () => void }} [options] `onLockPressed`, told once the
+ *     bike took a lock or unlock pressed here; `onSleep`, once the bike was sent to sleep
  * @returns {{ element: HTMLElement, render: (state: BikeState) => void }}
  */
-export function dashboardPage(session, units, status, { onLockPressed } = {}) {
+export function dashboardPage(session, units, status, { onLockPressed, onSleep } = {}) {
+    const details = bikeDetails(session, { onSleep });
     const ride = rideDetector();
     const viewChoice = choice({
         label: t('dashboard.view'),
@@ -92,6 +95,7 @@ export function dashboardPage(session, units, status, { onLockPressed } = {}) {
 
     /** @param {BikeState} state */
     const render = (state) => {
+        details.render(state);
         const metrics = state.metrics;
         if (metrics && metrics !== lastMetrics) {
             lastMetrics = metrics;
@@ -150,6 +154,7 @@ export function dashboardPage(session, units, status, { onLockPressed } = {}) {
                 el('h2', { class: 'section-title' }, [t('dashboard.controls')]),
                 el('div', { class: 'grid-2' }, [lights.element, lock.element]),
             ]),
+            ...details.content,
         ],
         status
     );

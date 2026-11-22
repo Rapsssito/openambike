@@ -41,7 +41,7 @@ The phone saves the Bluetooth log inside a bug report, a `.zip` file. Either:
 ### With OpenAMBike
 
 1. Close the official app, and open OpenAMBike.
-2. On the connect screen, tap "Read from a bug report" and choose the bug report's `.zip`.
+2. On the first screen, tap "Read from a bug report" and choose the bug report's `.zip`.
 3. OpenAMBike fills in the owner key. Tap "Connect": once the bike accepts it, OpenAMBike keeps it on that device.
 
 OpenAMBike reads the file on the phone only: it sends nothing anywhere and keeps nothing of the bug report but the key, once the bike accepts it. In the web app, the bug report can also be read on a computer, in Chrome or Edge.
@@ -56,7 +56,7 @@ python3 tools/owner_key.py path/to/bugreport.zip
 
 On Windows, the command may be `python` or `py` instead of `python3`.
 
-It prints the owner key: 28 characters on one line. Type it into OpenAMBike's connect screen; once the bike accepts it, OpenAMBike keeps it on that device. The script reads the file on your computer only, sends nothing anywhere and saves nothing.
+It prints the owner key: 28 characters on one line. Type it into OpenAMBike's first screen; once the bike accepts it, OpenAMBike keeps it on that device. The script reads the file on your computer only, sends nothing anywhere and saves nothing.
 
 ### Then
 

@@ -1179,3 +1179,48 @@ ion-toast.toast-error {
     overflow: hidden;
     background: var(--app-surface-2);
 }
+
+/* The card over the tabs that need the bike, while it is not connected; what it covers stays, blurred. */
+
+.unlinked ion-content:has(> .link-card) .page-body {
+    filter: blur(6px);
+    pointer-events: none;
+    user-select: none;
+}
+
+ion-content > .link-card {
+    display: none;
+}
+
+.unlinked ion-content > .link-card {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 16px;
+    right: 16px;
+    max-width: 480px;
+    margin: 0 auto;
+    transform: translateY(-50%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.link-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+
+.link-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.link-text {
+    margin: 0;
+}
+
+.link-text.failed {
+    color: var(--app-danger);
+}

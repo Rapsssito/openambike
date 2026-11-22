@@ -265,5 +265,10 @@
     "autoConnect.onRide": "Ruta automática activada",
     "autoConnect.onLockRide": "Bloqueo y ruta automáticos activados",
     "autoConnect.onLockUnlockRide": "Bloqueo, desbloqueo y ruta automáticos activados",
-    "activity.signalValue": "{now} dBm · mediana {median}"
+    "activity.signalValue": "{now} dBm · mediana {median}",
+    "common.connecting": "Conectando",
+    "common.disconnected": "Desconectada",
+    "link.title": "Conexión",
+    "link.reconnecting": "Se perdió la conexión. Reconectando…",
+    "link.disconnected": "La bici no está conectada."
 }

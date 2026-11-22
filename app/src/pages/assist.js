@@ -9,7 +9,7 @@ import { t } from '../i18n/i18n.js';
 import { KM_PER_MILE, number } from './format.js';
 import { button, card, el, icon, page, send, showToast } from './ui.js';
 
-/** @typedef {import('../session.js').Session} Session */
+/** @typedef {import('../bike-link.js').BikeView} BikeView */
 /** @typedef {import('../session.js').BikeState} BikeState */
 /** @typedef {import('../preferences.js').Units} Units */
 
@@ -62,7 +62,7 @@ function slider({ label, iconName, min, max, format, onInput }) {
 }
 
 /**
- * @param {Session} session
+ * @param {BikeView} session
  * @param {() => Units} units
  * @param {Node} status the connection status shown in the header
  * @returns {{ element: HTMLElement, render: (state: BikeState) => void }}

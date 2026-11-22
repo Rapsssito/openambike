@@ -9,7 +9,7 @@ Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or
 ## Contents
 
 - [Why it exists](#why-it-exists)
-- [What the app does](#what-the-app-does)
+- [Features](#features)
 - [Get started](#get-started)
 - [Which bikes it works with](#which-bikes-it-works-with)
 - [What it never does](#what-it-never-does)
@@ -19,21 +19,30 @@ Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or
 
 ## Why it exists
 
-Ampler Bikes OÜ went bankrupt, and its e-bikes depend on its app and its servers for locking, assist settings and live data. OpenAMBike is an app for Android and for the Chrome and Edge browsers that does the same over Bluetooth, straight to the bike, so that it keeps working whatever happens to Ampler's servers.
+You bought the bike, so it is yours: it should keep working for as long as you ride it, not for as long as a company stays in business. Ampler Bikes OÜ went bankrupt, and its e-bikes depend on its app and its servers for locking, assist settings and live data.
 
-## What the app does
+OpenAMBike is an app for Android and for the Chrome and Edge browsers that talks to the bike over Bluetooth, straight to it. It needs no account, no servers of its own and no permission from anyone: your bike, your key, your phone. It is free and open source, so that nobody can switch it off, make it a subscription or sell your data, and anyone can fix it, improve it or carry it to other bikes.
 
-- **Lock and unlock** your bike, and turn its **lights** on and off.
-- **Choose the assist mode:** off, mode 1 or mode 2.
-- **See your ride live:** speed, the motor's power and your own pedalling power, range and odometer, in a view that switches by itself when you start riding.
-- **Tune the assist** of each mode: up to what speed the motor helps (10 to 25 km/h) and how much (40 to 100 %).
-- **Check the battery:** charge, voltage, current and power, temperatures, charge cycles, and an estimate of its health.
-- **Turn the bike's GPS and mobile network** on or off, and **restart** it, send it to **sleep** or **calibrate** its torque sensor.
-- **Reconnect by itself** when the connection drops, and connect at once each time you open it.
-- **Connect, lock and record by itself** on Android: auto-connect connects when you are next to the bike, even with the app closed, auto-lock locks it when you walk away, and auto-ride records your ride from when you set off.
-- **Record your rides** on Android, with or without the bike connected: time, distance, speed, the motor's and your power, and the route on a map, kept on your phone and exported as GPX to other apps.
-- **See and copy your key,** like a Wi-Fi password, to keep it somewhere safe or use it on another phone.
-- In **English and Spanish.**
+## Features
+
+Compared with the official Ampler app, **which you still need once, to get your owner key**.
+
+|  | Official | OpenAMBike |
+| --- | :-: | :-: |
+| Lock and unlock, lights | ✅ | ✅ |
+| Assist mode: speed (10 to 25 km/h) and amount (40 to 100 %) | ✅ | ✅ |
+| Live speed, motor power, rider power, range and odometer | ✅ | ✅ |
+| Battery charge, charge cycles and firmware | ✅ | ✅ |
+| Bike's GPS and mobile network on or off, restart, sleep, torque sensor calibration | ✅ | ✅ |
+| Works with no account and no servers | ❌ | ✅ |
+| Voltage, current, power and temperatures of the battery, and an estimate of its health | Older versions only | ✅ |
+| See and copy your key, like a Wi-Fi password | ❌ | ✅ |
+| Auto-lock, auto-unlock and auto-ride (Android) | ❌ | ✅ |
+| Record rides with their route, exported as GPX (Android) | ❌ | ✅ |
+| Works on a computer, in Chrome or Edge | ❌ | ✅ |
+| Localization | ❌ | ✅ |
+| Firmware updates, factory motor calibration | ✅ | ❌ by choice ([what it never does](#what-it-never-does)) |
+| Communication with Ampler's servers | ✅ | ❌ |
 
 ## Get started
 

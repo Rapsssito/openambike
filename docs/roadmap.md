@@ -17,7 +17,6 @@ Features for Android, offered under Settings or in their own tab, with an (i) be
 - Auto-connect, auto-lock and auto-unlock ([app/DEVELOPMENT.md](../app/DEVELOPMENT.md), "Auto-connect") tried on the owner's phone and bike: the far threshold (the median below −80 dBm over 3 seconds) checked against the connection's signal strength, which Settings shows under "Automatic", "Activity", while auto-connect runs, as the owner walks away, so that the lock goes out before the link drops.
 - Rides ([app/DEVELOPMENT.md](../app/DEVELOPMENT.md), "Tabs") tried on the owner's phone and bike: recording with the screen off and the app closed, the figures against the bike's own, the map, and the GPX export opened in OsmAnd or Organic Maps and uploaded to Strava.
 - Auto-ride ([app/DEVELOPMENT.md](../app/DEVELOPMENT.md), "Auto-ride") tried on the owner's phone and bike: whether the bike's ASI metrics come often enough for 20 seconds of movement to be told from wheeling it out, and whether rides start and stop as it says with the app closed.
-- Whether the bike's Bluetooth address stays the same from one day to the next, with the connect screen's signal test ([app/DEVELOPMENT.md](../app/DEVELOPMENT.md), "Connect"), so that auto-connect's scan can go on filtering on it; the answer goes into [protocol.md](protocol.md), "Advertising".
 
 ## 3. The meaning of the rest of the characteristics
 

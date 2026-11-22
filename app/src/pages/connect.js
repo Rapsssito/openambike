@@ -1,6 +1,6 @@
-// The first screen. With the owner key saved and, on Android, the bike known from before, it connects at once, as the
-// official app does. Otherwise it asks for the key once, then finds the bike: on Android in the app's own list, in a
-// browser through the browser's chooser. The connection is shown step by step, and what goes wrong as a message.
+// The first screen, shown only until a bike is linked: it asks for the owner key once, then finds the bike, on Android
+// in the app's own list, in a browser through the browser's chooser. The connection is shown step by step, and what
+// goes wrong as a message. Once linked, the app opens on its tabs.
 import {
     bicycle,
     checkmarkCircle,
@@ -12,16 +12,14 @@ import {
     helpCircleOutline,
     keyOutline,
     search,
-    settings,
 } from 'ionicons/icons';
 
 import { AuthenticationError, bikeById, chooseBike, SCAN_TIMEOUT_MS, scanForBikes } from '../ble/bike.js';
 import { isOwnerKey } from '../ble/protocol.js';
 import { ownerKeysInBugReport } from '../bug-report/owner-key.js';
 import { t } from '../i18n/i18n.js';
-import { loadBikeId, loadUnits, saveBikeId, saveUnits } from '../preferences.js';
+import { loadBikeId, saveBikeId } from '../preferences.js';
 import { describeError } from './errors.js';
-import { settingsPage } from './settings.js';
 import { openSignalTest } from './signal.js';
 import {
     actionRow,
@@ -33,7 +31,6 @@ import {
     externalLink,
     icon,
     inputValue,
-    openSheet,
     page,
     pickFile,
     section,
@@ -130,21 +127,10 @@ function bikeList(onChoose) {
  * @param {boolean} options.bluetoothAvailable
  * @param {KeyStore} options.keyStore
  * @param {string} [options.message] shown instead of the default, such as why the last connection ended
- * @param {boolean} [options.autoConnect] whether to connect at once with a saved key and a known bike
- * @param {import('../auto-connect.js').AutoConnect | null} [options.automatic] auto-connect, on Android only
  * @param {(bike: Bike, key: string) => Promise<void>} options.onConnected called with the authenticated bike
  * @returns {HTMLElement}
  */
-export function connectPage({
-    client,
-    native,
-    bluetoothAvailable,
-    keyStore,
-    message: initial,
-    autoConnect = true,
-    automatic = null,
-    onConnected,
-}) {
+export function connectPage({ client, native, bluetoothAvailable, keyStore, message: initial, onConnected }) {
     const keyInput = el('ion-input', {
         type: 'password',
         label: t('home.keyLabel'),
@@ -210,40 +196,6 @@ export function connectPage({
         ],
         { iconName: keyOutline }
     );
-
-    // Settings, with no bike connected: what needs no bike, such as the automatic options and the key.
-    /** @type {{ dismiss: () => Promise<boolean> } | null} */
-    let moreSheet = null;
-    const closeMore = () => {
-        const sheet = moreSheet;
-        moreSheet = null;
-        return sheet ? sheet.dismiss().catch(() => false) : Promise.resolve(false);
-    };
-    async function openMore() {
-        const more = settingsPage({
-            session: null,
-            keyStore,
-            units: loadUnits,
-            setUnits: saveUnits,
-            onForget: async () => {
-                // As with a bike connected, forgetting the key turns auto-connect off.
-                await automatic?.disable().catch(() => undefined);
-                storedKey = null;
-                progress.element.hidden = true;
-                layout();
-                await closeMore();
-                await showToast(t('more.forgotten'));
-            },
-            autoConnect: automatic,
-            bikeAddress: native ? loadBikeId : () => null,
-            hasKey: storedKey !== null,
-        });
-        moreSheet = await openSheet(t('more.title'), more.content, () => {
-            more.stop();
-            moreSheet = null;
-        });
-    }
-    const moreRow = actionRow({ iconName: settings, label: t('more.title'), onClick: () => openMore() });
 
     /** @type {string | null} */
     let storedKey = null;
@@ -349,7 +301,6 @@ export function connectPage({
             if (native) saveBikeId(bike.deviceId);
             progress.show(++step);
             say(t('home.reading'));
-            await closeMore();
             await onConnected(bike, ownerKey);
         } catch (error) {
             if (bike) await bike.disconnect().catch(() => undefined);
@@ -435,9 +386,6 @@ export function connectPage({
         .then((saved) => {
             storedKey = saved;
             layout();
-            if (storedKey !== null && autoConnect && bluetoothAvailable && native && loadBikeId() !== null) {
-                connect();
-            }
         });
 
     // The app's own icon, public/icon.svg, as on the launcher; decorative, since the name follows.
@@ -465,7 +413,6 @@ export function connectPage({
             otherKeyButton,
         ]),
         help,
-        card([moreRow]),
         el('p', { class: 'disclaimer' }, [t('app.disclaimer')]),
     ]);
     element.classList.add('connect-page');

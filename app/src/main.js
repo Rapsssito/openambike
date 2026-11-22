@@ -1,6 +1,6 @@
-// Starts the app: Ionic's components, the language, and the screens. Before a connection the connect screen shows;
-// while connected, the tabs over one session, which reconnects by itself when the link drops. The connect screen shows
-// again only when the rider disconnects, sends the bike to sleep or forgets the key, or the bike refuses the key.
+// Starts the app: Ionic's components, the language, and the screens. The connect screen shows only until a bike is
+// linked: no key saved, or, on Android, no bike known. Then the tabs show, connected or not, with the link to the bike
+// and its state in them; the connect screen shows again only when the rider forgets the key or chooses another.
 import '@ionic/core/css/core.css';
 import '@ionic/core/css/normalize.css';
 import '@ionic/core/css/structure.css';
@@ -41,8 +41,8 @@ import { pickLanguage, setLanguage, t } from './i18n/i18n.js';
 import { connectPage } from './pages/connect.js';
 import { tabsPage } from './pages/tabs.js';
 import { confirmAction } from './pages/ui.js';
-import { keepConnected } from './connection.js';
-import { createSession } from './session.js';
+import { createBikeLink } from './bike-link.js';
+import { loadBikeId, saveBikeId } from './preferences.js';
 import { createNativeKeyStore, createWebKeyStore, indexedDbRecords } from './storage/key-store.js';
 
 // Ionic's iOS look on every platform, so that the app looks the same on Android and in a browser.
@@ -91,10 +91,10 @@ const keyStore = native
 const app = document.querySelector('ion-app');
 
 /**
+ * The first screen, until a bike is linked.
  * @param {string} [message]
- * @param {boolean} [connectAtOnce] whether to connect at once with a saved key and a known bike
  */
-function showConnect(message, connectAtOnce = true) {
+function showConnect(message) {
     app?.replaceChildren(
         connectPage({
             client,
@@ -102,22 +102,22 @@ function showConnect(message, connectAtOnce = true) {
             bluetoothAvailable,
             keyStore,
             message,
-            autoConnect: connectAtOnce,
-            automatic: autoConnect,
-            onConnected,
+            onConnected: async (bike, key) => {
+                const link = newLink();
+                await link.adopt(bike, key);
+                showTabs(link);
+            },
         })
     );
 }
 
 /**
+ * Auto-connect, if on, runs with the texts of now and the key the bike just accepted. Turned on again by a restored
+ * backup with auto-ride, it asks at once for location "all the time", which a backup does not bring back.
  * @param {import('./ble/bike.js').Bike} bike
  * @param {string} key the owner key the bike accepted
  */
-async function onConnected(bike, key) {
-    const session = createSession(bike);
-    await session.start();
-    // Auto-connect, if on, runs with the texts of now and the key the bike just accepted. Turned on again by a restored
-    // backup with auto-ride, it asks at once for location "all the time", which a backup does not bring back.
+function onConnected(bike, key) {
     autoConnect
         ?.refresh({ address: bike.deviceId, key })
         .then(async ({ restored, autoRide }) => {
@@ -128,43 +128,80 @@ async function onConnected(bike, key) {
             }
         })
         .catch(() => undefined);
-    let ended = false;
+}
+
+/** A link to the bike with the saved key. A refused key turns auto-connect off, so that it never tries it again. */
+function newLink() {
+    const link = createBikeLink({
+        client,
+        native,
+        loadKey: () => keyStore.load(),
+        loadBikeId,
+        saveBikeId,
+        onConnected,
+    });
+    link.onStatus(({ phase }) => {
+        if (phase === 'refused') autoConnect?.disable().catch(() => undefined);
+    });
+    return link;
+}
+
+/**
+ * The tabs, whether the bike is connected or not.
+ * @param {import('./bike-link.js').BikeLink} link
+ */
+function showTabs(link) {
     /**
-     * Leaves the tabs for the connect screen, ending the connection. Auto-connect, if on, pauses until the rider
-     * connects again; with the key forgotten or refused, it turns off, so that it never tries a key that does not work.
+     * Leaves the tabs for the connect screen, with the key gone: auto-connect turns off.
      * @param {string} [message]
-     * @param {{ keyGone?: boolean }} [options]
      */
-    const end = async (message, { keyGone = false } = {}) => {
-        if (ended) return;
-        ended = true;
-        await (keyGone ? autoConnect?.disable() : autoConnect?.pause())?.catch(() => undefined);
-        link.stop();
-        await session.stop();
-        await bike.disconnect().catch(() => undefined);
-        showConnect(message, false);
+    const unlink = async (message) => {
+        await autoConnect?.disable().catch(() => undefined);
+        await link.disconnect();
+        showConnect(message);
     };
-    const link = keepConnected({ bike, session, key, onGiveUp: () => end(t('error.refused'), { keyGone: true }) });
     app?.replaceChildren(
         tabsPage({
-            session,
+            link,
+            native,
             keyStore,
-            // With auto-connect on, the connect screen says that it waits until the rider connects again.
+            // Auto-connect, if on, pauses until the rider connects again, and the card says so.
             onDisconnect: async () => {
                 const paused = await autoConnect?.status().then(
                     (status) => status.enabled,
                     () => false
                 );
-                await end(paused ? t('home.autoConnectPaused') : undefined);
+                await autoConnect?.pause().catch(() => undefined);
+                await link.disconnect(paused ? t('home.autoConnectPaused') : undefined);
             },
-            onSleep: () => end(t('home.asleep')),
-            onForget: () => end(t('more.forgotten'), { keyGone: true }),
+            onSleep: async () => {
+                await autoConnect?.pause().catch(() => undefined);
+                await link.disconnect(t('home.asleep'));
+            },
+            onForget: () => unlink(t('more.forgotten')),
+            onOtherKey: async () => {
+                const header = t('home.otherKey');
+                const message = t('home.otherKeyConfirm');
+                if (!(await confirmAction({ header, message, confirm: header, danger: true }))) return;
+                await keyStore.remove().catch(() => undefined);
+                await unlink();
+            },
             autoConnect,
             rides,
         })
     );
 }
 
+/** The tabs once a bike is linked, connecting at once on Android; the connect screen otherwise. */
+async function start() {
+    const key = await keyStore.load().catch(() => null);
+    if (key === null || (native && loadBikeId() === null)) return showConnect();
+    const link = newLink();
+    showTabs(link);
+    // A browser opens its chooser only from a tap, so there the card's "Connect" starts the connection.
+    if (native && bluetoothAvailable) link.connect();
+}
+
 // Auto-connect left on alone by an earlier version turns off, as no switch shows it any more.
 autoConnect?.turnOffAlone().catch(() => undefined);
-showConnect();
+start();
