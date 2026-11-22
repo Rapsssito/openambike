@@ -43,7 +43,7 @@ Private data means: keys and tokens of the bike or of an Ampler account, serial 
 
 - It lives only in `reverse-engineering/private/`, which git ignores.
 - A capture or value quoted in `docs/` or in a test is anonymised first: MAC addresses become `AA:BB:CC:DD:EE:FF`, serial numbers `SERIAL`, keys and tokens a run of `00` of the same length, positions are removed. The bytes that matter for the protocol stay unchanged.
-- The bike's key is backed up outside the phone and the container (an encrypted export the owner keeps), so that losing one device does not lose control of the bike.
+- The bike's key is backed up outside the phone and the container (a copy the owner keeps somewhere safe, such as a password manager), so that losing one device does not lose control of the bike.
 
 ## Name and trademark
 

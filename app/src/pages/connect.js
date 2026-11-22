@@ -211,7 +211,7 @@ export function connectPage({
         { iconName: keyOutline }
     );
 
-    // Settings, with no bike connected: what needs no bike, such as the automatic options and the key's export.
+    // Settings, with no bike connected: what needs no bike, such as the automatic options and the key.
     /** @type {{ dismiss: () => Promise<boolean> } | null} */
     let moreSheet = null;
     const closeMore = () => {
@@ -233,12 +233,6 @@ export function connectPage({
                 layout();
                 await closeMore();
                 await showToast(t('more.forgotten'));
-            },
-            onImported: async (imported) => {
-                storedKey = imported;
-                setInputValue(keyInput, '');
-                layout();
-                await closeMore();
             },
             autoConnect: automatic,
             bikeAddress: native ? loadBikeId : () => null,

@@ -60,7 +60,7 @@ It prints the owner key: 28 characters on one line. Type it into OpenAMBike's co
 
 ### Then
 
-Use "Export the key", in OpenAMBike's Settings, with or without the bike connected, to keep an encrypted backup somewhere safe.
+In OpenAMBike's Settings, with or without the bike connected, "Owner key" shows the key and copies it: keep a copy somewhere safe, such as a password manager.
 
 ## 4. Clean up
 

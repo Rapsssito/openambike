@@ -31,8 +31,6 @@ Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or
 
 To update, download and install the newest APK in the same way: it installs over the old one and keeps your key.
 
-If you installed version 1.1.1 or earlier, the new version is a separate app, as its identifier changed so that it can be published on F-Droid, and it does not install over the old one. Move your key first: in the old app, connected to your bike, open More, "Export the key", and keep the text and passphrase. Install the new version, then on its first screen open "Settings", "Import a key", and paste the text with its passphrase. Export any ride you want to keep from the old app's Rides tab, as its rides do not move. Then uninstall the old app: both are called OpenAMBike, and in Android's Settings, Apps, the old one shows version 1.1.1 or earlier at the bottom of its page.
-
 ## Use it in a browser on a computer
 
 The app also runs in Chrome or Edge, on a computer with Bluetooth. It is not hosted online yet, so you run it from your own computer, once:
@@ -91,7 +89,7 @@ Tap (i) beside each to read what it does.
 
 - The app talks to your bike, and has no account and no server of its own. The only thing it downloads is the map of a ride you open, from OpenFreeMap, a free map service built on OpenStreetMap: that tells OpenFreeMap your phone's IP address and the area shown, nothing else.
 - Your rides stay on your phone, until you export them yourself. The app uses your location only while it records a ride; "all the time" only lets auto-ride record a ride it started with the app closed. Android's backup keeps them, to the cloud only when your phone encrypts it (with a screen lock), and moves them to a new phone.
-- Your owner key stays on your device, encrypted. Android's backup keeps a copy of it, with your automatic options (auto-connect, auto-lock, auto-unlock, auto-ride), so that a new phone restored from it connects to your bike as before: to the cloud only when your phone encrypts the backup with your screen lock, and in a direct transfer to a new phone. Nothing else of the app goes into the backup. That copy is not encrypted on the phone itself, only kept in the app's own storage, which other apps cannot read; on a rooted phone, it could be. The app's encrypted export works as before, for a phone with no backup or a browser.
+- Your owner key stays on your device, encrypted. Android's backup keeps a copy of it, with your automatic options (auto-connect, auto-lock, auto-unlock, auto-ride), so that a new phone restored from it connects to your bike as before: to the cloud only when your phone encrypts the backup with your screen lock, and in a direct transfer to a new phone. Nothing else of the app goes into the backup. That copy is not encrypted on the phone itself, only kept in the app's own storage, which other apps cannot read; on a rooted phone, it could be. For a phone with no backup or a browser, Settings, "Owner key", shows your key and copies it, to paste in the other device.
 - Auto-connect keeps a copy of your key on the phone, encrypted, to connect with the app closed; turning it off removes it.
 - Keep your key secret: anyone who has it can unlock and control your bike.
 - The app never updates the bike's firmware, never raises the assist above 25 km/h or the motor above its own maximum, and sends the bike only commands that are documented and tested ([docs/safety.md](../docs/safety.md)).

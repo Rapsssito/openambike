@@ -32,7 +32,7 @@ Ampler Bikes OÜ went bankrupt, and its e-bikes depend on its app and its server
 - **Reconnect by itself** when the connection drops, and connect at once each time you open it.
 - **Connect, lock and record by itself** on Android: auto-connect connects when you are next to the bike, even with the app closed, auto-lock locks it when you walk away, and auto-ride records your ride from when you set off.
 - **Record your rides** on Android, with or without the bike connected: time, distance, speed, the motor's and your power, and the route on a map, kept on your phone and exported as GPX to other apps.
-- **Back up your key,** encrypted with a passphrase, to move it to a new phone.
+- **See and copy your key,** like a Wi-Fi password, to keep it somewhere safe or use it on another phone.
 - In **English and Spanish.**
 
 ## Get started

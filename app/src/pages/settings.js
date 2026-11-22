@@ -22,7 +22,7 @@ import {
 
 import { t } from '../i18n/i18n.js';
 import { automaticSection } from './automatic.js';
-import { keyExportSection, keyImportSection } from './key-backup.js';
+import { keyRow } from './key-row.js';
 import {
     actionRow,
     choice,
@@ -97,7 +97,6 @@ async function showLicences() {
  * @param {() => void} [options.onDisconnect] with a bike connected
  * @param {() => void} [options.onSleep] called once the bike was sent to sleep, which ends the connection
  * @param {() => void} options.onForget called once the key was removed from this device, which ends any connection
- * @param {(key: string) => void} [options.onImported] called with an imported key once it is saved
  * @param {Node} [options.status] the connection status shown in the header
  * @param {import('../auto-connect.js').AutoConnect | null} [options.autoConnect] on Android only
  * @param {() => string | null} [options.bikeAddress] with no bike connected, the bike auto-connect would connect to
@@ -113,7 +112,6 @@ export function settingsPage({
     onDisconnect = () => undefined,
     onSleep = () => undefined,
     onForget,
-    onImported,
     status,
     autoConnect = null,
     bikeAddress = () => null,
@@ -246,10 +244,13 @@ export function settingsPage({
                   ),
               ]
             : []),
-        ...(hasKey ? [keyExportSection(keyStore)] : []),
-        keyImportSection(keyStore, onImported),
         ...(session || hasKey
-            ? [section(t('more.key'), session ? [forgetRow, disconnectRow] : [forgetRow], { iconName: key })]
+            ? [
+                  section(t('more.key'), [keyRow(keyStore), forgetRow, ...(session ? [disconnectRow] : [])], {
+                      iconName: key,
+                      footer: t('more.keyHelp'),
+                  }),
+              ]
             : []),
         section(
             t('more.about'),
