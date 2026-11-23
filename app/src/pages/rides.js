@@ -461,7 +461,8 @@ export function ridesPage({ rides, units, status, showRoute }) {
         // The sheet of a ride that ended closes: the history now shows it.
         if (currentSheet && currentSheet.id !== active?.id) currentSheet.close();
         if (!active) {
-            currentRow.replaceChildren(el('p', { class: 'ride-state', role: 'status' }, [t('rides.none')]));
+            // "Start ride" says by itself that nothing is recorded.
+            currentRow.replaceChildren();
             return;
         }
         showControls();
@@ -548,6 +549,14 @@ export function ridesPage({ rides, units, status, showRoute }) {
     };
 
     const showHistory = async () => {
+        // Reading a ride whose summary is not made yet takes a moment: say so, so that it is not taken for lost.
+        historyRows.querySelector('.history-loading')?.remove();
+        historyRows.append(
+            el('p', { class: 'ride-state history-loading' }, [
+                el('ion-spinner', { name: 'crescent' }),
+                ` ${t('rides.loadingHistory')}`,
+            ])
+        );
         try {
             const rows = [];
             for (const ride of await rides.history(active?.id ?? null)) {
@@ -565,6 +574,7 @@ export function ridesPage({ rides, units, status, showRoute }) {
             );
             exportAllButton.hidden = rows.length === 0;
         } catch (error) {
+            historyRows.querySelector('.history-loading')?.remove();
             await report(error);
         }
     };

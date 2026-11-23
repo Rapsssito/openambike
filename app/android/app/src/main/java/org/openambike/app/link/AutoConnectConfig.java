@@ -31,6 +31,8 @@ final class AutoConnectConfig {
     final Exchange unlock;
     /** The characteristic whose notifications say the bike moves, when a byte of [from, to) is not zero. */
     final Exchange movement;
+    /** With auto-ride on, the battery, whose notifications a ride records; else null, as before it existed. */
+    final Exchange battery;
     final int movementFrom;
     final int movementTo;
     /**
@@ -53,6 +55,8 @@ final class AutoConnectConfig {
         unlock = new Exchange(root.getJSONObject("unlock"));
         JSONObject movementJson = root.getJSONObject("movement");
         movement = new Exchange(movementJson);
+        JSONObject batteryJson = root.optJSONObject("battery");
+        battery = batteryJson == null ? null : new Exchange(batteryJson);
         movementFrom = movementJson.getInt("from");
         movementTo = movementJson.getInt("to");
         org.json.JSONArray pedalledJson = movementJson.optJSONArray("pedalled");

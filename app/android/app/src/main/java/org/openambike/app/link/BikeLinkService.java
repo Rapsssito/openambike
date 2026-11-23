@@ -720,7 +720,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (config != null) link.disconnect(config.address, (value, error) -> {});
     }
 
-    /** The bike accepted the key auto-connect sent: it listens to the movement and the lock, then has the link. */
+    /** The bike accepted the key auto-connect sent: it listens to the movement, the lock and, with auto-ride, the battery, then has the link. */
     private void authenticated(String address) {
         authenticating = false;
         link.removeCallbacks(authTimeout);
@@ -731,6 +731,9 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         link.setNotifications(address, auth.service, auth.characteristic, false, ignore);
         link.setNotifications(address, movement.service, movement.characteristic, true, ignore);
         link.setNotifications(address, lock.service, lock.characteristic, true, ignore);
+        if (config.battery != null) {
+            link.setNotifications(address, config.battery.service, config.battery.characteristic, true, ignore);
+        }
         link.read(address, lock.service, lock.characteristic, (value, error) -> {
             if (auto != null) auto.linkUp(now());
         });

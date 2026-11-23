@@ -145,7 +145,8 @@ export async function showRoute(container, points, layer) {
     });
     const stops = LAYER_COLOURS.flatMap((c, i) => [i / (LAYER_COLOURS.length - 1), c]);
     map.on('load', () => {
-        map.addSource('ride', { type: 'geojson', data: layerGeoJson(points, layer) });
+        // No simplification: at low zoom it drops the short pieces, and with them the colours.
+        map.addSource('ride', { type: 'geojson', data: layerGeoJson(points, layer), tolerance: 0 });
         map.addSource('cursor', { type: 'geojson', data: cursorGeoJson(null) });
         map.addLayer({
             id: 'ride-route',

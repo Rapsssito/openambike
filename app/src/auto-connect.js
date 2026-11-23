@@ -80,7 +80,7 @@ export function onText({ autoLock, autoUnlock, autoRide }) {
  *     bike's Bluetooth address and owner key; auto-unlock only with auto-lock
  */
 export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, autoRide = false }) {
-    const { auth, lock, asiMetrics } = CHARACTERISTIC;
+    const { auth, lock, asiMetrics, battery } = CHARACTERISTIC;
     const minutes = String(AUTO_CONNECT_THRESHOLDS.parkedMs / 60_000);
     return {
         address,
@@ -89,6 +89,8 @@ export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, 
         autoRide,
         // What a ride auto-ride starts records, as one started by hand.
         ...(autoRide ? { ride: rideConfig() } : {}),
+        // A ride records the battery's notifications too, which the app's session listens to only while it is open.
+        ...(autoRide ? { battery: { service: battery.service, characteristic: battery.uuid } } : {}),
         auth: {
             service: auth.service,
             characteristic: auth.uuid,

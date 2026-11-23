@@ -48,6 +48,16 @@ describe('auto-connect', () => {
         expect(config.unlock).toEqual({ ...config.lock, value: '00' });
     });
 
+    test('with auto-ride on, the service also listens to the battery, which a ride records', () => {
+        const off = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: true });
+        expect(off.battery).toBeUndefined();
+        const on = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: true, autoRide: true });
+        expect(on.battery).toEqual({
+            service: CHARACTERISTIC.battery.service,
+            characteristic: CHARACTERISTIC.battery.uuid,
+        });
+    });
+
     test('the notifications are in the language of the app', () => {
         setLanguage('es');
         const { texts } = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: true });
