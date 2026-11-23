@@ -1,0 +1,9 @@
+Bug Fixes:
+
+- keep auto-lock, auto-ride and rides working through drops, updates and reconnections
+- read a ride from where it was left, not from its start, so it is not counted twice
+
+Features:
+
+- colour a ride's map by speed, power or elevation, with a chart of the layer
+- show the ride being recorded over the whole screen, with its map, figures and charts

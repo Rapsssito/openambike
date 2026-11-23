@@ -2,6 +2,18 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+# [2.1.0](https://github.com/Rapsssito/openambike/compare/v2.0.1...v2.1.0) (2026-11-23)
+
+### Bug Fixes
+
+* **app:** keep auto-lock, auto-ride and rides working through drops, updates and reconnections ([535af8c](https://github.com/Rapsssito/openambike/commit/535af8c7cd4cd46e3b499ab4f54230a61fb99b49))
+* **app:** read a ride from where it was left, not from its start, so it is not counted twice ([61566b6](https://github.com/Rapsssito/openambike/commit/61566b6850f29cda96a4ab610a82cf0e1f447f2e))
+
+### Features
+
+* **app:** colour a ride's map by speed, power or elevation, with a chart of the layer ([727ece8](https://github.com/Rapsssito/openambike/commit/727ece82235dd6bc69d4438ef68f8023b2fe1f19))
+* **app:** show the ride being recorded over the whole screen, with its map, figures and charts ([f607a38](https://github.com/Rapsssito/openambike/commit/f607a3888a74f12c5282ed1485d586cc670d11a0))
+
 ## [2.0.1](https://github.com/Rapsssito/openambike/compare/v2.0.0...v2.0.1) (2026-11-23)
 
 ### Bug Fixes
