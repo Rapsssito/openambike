@@ -10,5 +10,5 @@ From [DEVELOPMENT.md](DEVELOPMENT.md): "Stack", "Structure" and "Design" always;
 
 - If a screen needs something the specification lacks, stop and ask the owner; never add the protocol code first.
 - Every text the interface shows is in each file of `src/i18n/`, with the same keys.
-- Never take a screenshot without asking the owner first, each time. Allowed screenshots follow [DEVELOPMENT.md](DEVELOPMENT.md), "Design", and stay out of the repository.
+- Never take a screenshot without asking the owner first, each time. Allowed screenshots follow [DEVELOPMENT.md](DEVELOPMENT.md), "Design", and stay out of the repository, except the listing's, made from the fake bike as "Build and release" says.
 - After changing the app, offer the owner the commands to try it ([DEVELOPMENT.md](DEVELOPMENT.md), "Running"), and say which commands to the bike the change can send.

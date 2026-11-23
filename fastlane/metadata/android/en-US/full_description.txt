@@ -12,7 +12,7 @@ Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or
 <li>Turn the bike's GPS and mobile network on or off, restart it, send it to sleep or calibrate its torque sensor.</li>
 <li>Auto-connect when you are next to the bike, even with the app closed; auto-lock when you walk away; auto-ride to record your ride from when you set off.</li>
 <li>Record your rides, with or without the bike connected, see the route on a map, and export them as GPX.</li>
-<li>Back up your key, encrypted with a passphrase, to move it to a new phone.</li>
+<li>See and copy your owner key in Settings, to keep it somewhere safe or move it to a new phone.</li>
 <li>In English and Spanish.</li>
 </ul>
 

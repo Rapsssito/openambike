@@ -6,6 +6,10 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+<p align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Bike tab: battery, range, odometer, assist mode, lights and lock" width="200"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Assist tab: assist speed and amount of each mode" width="200"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Battery tab: voltage, current, temperatures, charge cycles and health" width="200"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Connect screen: the owner key" width="200"></p>
+
+<p align="center"><sub>Shown with a simulated bike, not a real one.</sub></p>
+
 ## Contents
 
 - [Why it exists](#why-it-exists)
