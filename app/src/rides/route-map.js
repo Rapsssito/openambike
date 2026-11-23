@@ -50,9 +50,52 @@ export function routeBounds(route) {
 }
 
 /**
+ * @typedef {object} RouteMap a map as `followRoute` uses it: MapLibre's, or a fake in tests
+ * @property {(id: string) => { setData: (data: ReturnType<typeof routeGeoJson>) => unknown } | undefined} getSource
+ * @property {(bounds: ReturnType<typeof routeBounds>, options: object) => unknown} fitBounds
+ * @property {(name: string, handler: (event: { originalEvent?: unknown }) => void) => unknown} on
+ */
+
+/**
+ * Keeps the route of a ride being recorded drawn as it grows: drawn once the map has loaded, and the map fitted to it
+ * until the rider moves or zooms the map, whose own moves, as fitting the route, have no `originalEvent`.
+ * @param {RouteMap} map
+ */
+export function followRoute(map) {
+    /** @type {[number, number][] | null} */
+    let latest = null;
+    let fitting = true;
+    const riderMoved = (/** @type {{ originalEvent?: unknown }} */ event) => {
+        if (event.originalEvent) fitting = false;
+    };
+    map.on('dragstart', riderMoved);
+    map.on('zoomstart', riderMoved);
+    map.on('rotatestart', riderMoved);
+    /** @param {[number, number][]} route */
+    const draw = (route) => {
+        const source = map.getSource('ride');
+        if (!source) return;
+        source.setData(routeGeoJson(route));
+        if (fitting) map.fitBounds(routeBounds(route), { padding: 32, animate: false });
+    };
+    map.on('load', () => {
+        if (latest) draw(latest);
+    });
+    return {
+        /** @param {[number, number][]} route the whole route so far */
+        update(route) {
+            latest = route;
+            draw(route);
+        },
+    };
+}
+
+/**
  * Draws the route on a map in the container. MapLibre is loaded the first time, to keep it out of the app's start.
  * @param {HTMLElement} container sized, and in the page
  * @param {[number, number][]} route
+ * @returns {Promise<{ update: (route: [number, number][]) => void }>} draws the route again as it grows, for a ride
+ *     being recorded
  */
 export async function showRoute(container, route) {
     const [{ default: maplibregl }] = await Promise.all([
@@ -91,5 +134,6 @@ export async function showRoute(container, route) {
             },
         });
     });
-    return map;
+    // After the load above, which adds the route's source.
+    return followRoute(/** @type {RouteMap} */ (/** @type {unknown} */ (map)));
 }
