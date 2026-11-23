@@ -165,6 +165,15 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
                 config = null;
             }
         }
+        // Created because the app opened and bound to it: with auto-connect on or a ride recorded, it runs as a
+        // foreground service at once, whether the bike is connected or not, so that it goes on once the app is closed.
+        if (link != null && (config != null || rideConfig != null)) {
+            try {
+                ContextCompat.startForegroundService(this, new Intent(this, BikeLinkService.class));
+            } catch (IllegalStateException notAllowedNow) {
+                // Bound from the background, which Android refuses to start from: the next start does it.
+            }
+        }
     }
 
     @Override
@@ -295,8 +304,9 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     }
 
     /**
-     * What auto-connect does, for the app's Settings: whether it runs, where its timers stand, and its history, newest
-     * first, each event with its time in milliseconds since 1970. Called on the link's thread.
+     * What auto-connect does, for the app's Settings: whether it runs, the signal as last read, how long it still waits
+     * for a dropped connection, and its history, newest first, each event with its time in milliseconds since 1970.
+     * Called on the link's thread.
      */
     JSONObject autoConnectActivity() throws JSONException {
         JSONObject result = new JSONObject();
@@ -304,32 +314,10 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         long now = now();
         long wall = System.currentTimeMillis();
         AutoConnect.Preview preview = auto.preview(now);
-        result.put("running", true)
-            .put("state", preview.state.name())
-            .put("connected", preview.connected)
-            .put("lockHeld", preview.lockHeld)
-            .put("nearForMs", preview.nearForMs)
-            .put("signalSettled", preview.signalSettled)
-            .put("guardLeftMs", preview.guardLeftMs)
-            .put("parkedLeftMs", preview.parkedLeftMs);
-        if (preview.lastLocked != null) result.put("locked", preview.lastLocked);
-        if (preview.heardDbm != null) result.put("heardDbm", preview.heardDbm).put("heardAgoMs", preview.heardAgoMs);
-        if (preview.connectInMs != null) result.put("connectInMs", preview.connectInMs);
-        if (preview.leaveInMs != null) result.put("leaveInMs", preview.leaveInMs);
-        if (preview.dropLeftMs != null) result.put("dropLeftMs", preview.dropLeftMs);
-        if (preview.nearDbm != null) result.put("nearDbm", Math.round(preview.nearDbm));
-        if (preview.signalDbm != null) result.put("signalDbm", Math.round(preview.signalDbm));
+        result.put("running", true).put("connected", preview.connected);
         if (preview.signalNowDbm != null) result.put("signalNowDbm", preview.signalNowDbm);
-        if (preview.movedAgoMs != null) result.put("movedAgoMs", preview.movedAgoMs);
-        // The ride being recorded, whether auto-ride started it, and auto-ride's countdowns.
-        JSONObject rideState = new JSONObject().put("active", rideConfig != null);
-        if (rideConfig != null) rideState.put("auto", rideConfig.optBoolean("auto", false));
-        if (autoRide != null) {
-            AutoRide.Preview ridePreview = autoRide.preview(now, rideLetGoInMs(preview));
-            if (ridePreview.startInMs != null) rideState.put("startInMs", ridePreview.startInMs);
-            if (ridePreview.stopInMs != null) rideState.put("stopInMs", ridePreview.stopInMs);
-        }
-        result.put("ride", rideState);
+        if (preview.heardDbm != null) result.put("heardDbm", preview.heardDbm).put("heardAgoMs", preview.heardAgoMs);
+        if (preview.dropLeftMs != null) result.put("dropLeftMs", preview.dropLeftMs);
         JSONArray history = new JSONArray();
         for (AutoConnect.Entry entry : auto.history()) {
             history.put(
@@ -342,14 +330,6 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         return result.put("history", history);
     }
 
-    /**
-     * How long until auto-connect takes the rider to have left without them walking away, which ends a ride auto-ride
-     * started: the wait for a dropped connection, or the parked time while connected; null otherwise.
-     */
-    private static Long rideLetGoInMs(AutoConnect.Preview preview) {
-        if (preview.dropLeftMs != null) return preview.dropLeftMs;
-        return preview.state == AutoConnect.State.CONNECTED ? preview.parkedLeftMs : null;
-    }
 
     /**
      * The automatic options a backup brought back, as {@code { autoLock, autoUnlock, autoRide }}, while auto-connect has

@@ -4,7 +4,7 @@
 import { bicycle, map, play, pause, shareOutline, speedometer, stop, time, trash } from 'ionicons/icons';
 
 import { t } from '../i18n/i18n.js';
-import { rideName } from '../rides/rides.js';
+import { rideName, watchRides } from '../rides/rides.js';
 import { describeError } from './errors.js';
 import { distance, duration, number, speed } from './format.js';
 import {
@@ -27,7 +27,7 @@ import {
 /** @typedef {import('../rides/ride.js').RideSummary} RideSummary */
 /** @typedef {import('../preferences.js').Units} Units */
 
-/** How often the ride being recorded is read again while the tab shows it. */
+/** How often the ride being recorded, and whether one is, is read again while the app is on screen. */
 const LIVE_MS = 2000;
 
 /**
@@ -105,10 +105,10 @@ export function ridesPage({ rides, units, status, showRoute }) {
 
     /** @type {{ id: number, paused: boolean } | null} */
     let active = null;
-    /** @type {ReturnType<typeof setInterval> | null} */
-    let timer = null;
 
-    const showCurrent = async () => {
+    /** @param {{ id: number, paused: boolean } | null} now the ride being recorded, as the service says */
+    const showCurrent = async (now) => {
+        active = now;
         startButton.hidden = active !== null;
         live.hidden = active === null;
         actions.hidden = active === null;
@@ -129,15 +129,13 @@ export function ridesPage({ rides, units, status, showRoute }) {
         averageSpeed.set(ride.averageKmh === null ? t('common.unknown') : speed(ride.averageKmh, units()));
     };
 
+    // The service starts and stops rides by itself (auto-ride): the tab follows it, and shows the history again when a
+    // ride starts or ends, so that a ride stopped by auto-ride leaves the current ride for the history.
+    /** @type {() => Promise<void>} */
+    let watch = async () => undefined;
     const refresh = async () => {
         try {
-            active = await rides.active();
-            await showCurrent();
-            if (active && timer === null) timer = setInterval(() => showCurrent().catch(() => undefined), LIVE_MS);
-            if (!active && timer !== null) {
-                clearInterval(timer);
-                timer = null;
-            }
+            await watch();
         } catch (error) {
             await report(error);
         }
@@ -151,7 +149,6 @@ export function ridesPage({ rides, units, status, showRoute }) {
                 await report(error);
             }
             await refresh();
-            await showHistory();
         })
     );
     pauseButton.addEventListener('click', () =>
@@ -167,7 +164,6 @@ export function ridesPage({ rides, units, status, showRoute }) {
         await whileBusy(stopButton, async () => {
             await rides.stop().catch(report);
             await refresh();
-            await showHistory();
         });
     });
 
@@ -282,7 +278,14 @@ export function ridesPage({ rides, units, status, showRoute }) {
         [section(t('rides.current'), current, { iconName: bicycle }), history],
         status
     );
-    refresh().then(showHistory);
+    watch = watchRides(rides, { showCurrent, showHistory });
+    refresh();
+    setInterval(() => {
+        if (!globalThis.document.hidden) watch().catch(() => undefined);
+    }, LIVE_MS);
+    globalThis.document.addEventListener('visibilitychange', () => {
+        if (!globalThis.document.hidden) refresh();
+    });
     return {
         element,
         // A ride does not depend on the bike's connection; the figures it shows come from the ride's own file.

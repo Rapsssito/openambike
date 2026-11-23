@@ -3,7 +3,7 @@ import { setLanguage, t } from '../i18n/i18n.js';
 import { fakeClient } from '../test-support/fake-client.js';
 import { fakePlugin } from '../test-support/fake-plugin.js';
 import { RIDE_ID, rideFile } from '../test-support/ride-file.js';
-import { createRides, rideConfig } from './rides.js';
+import { createRides, rideConfig, watchRides } from './rides.js';
 
 describe('rides', () => {
     beforeAll(() => {
@@ -54,6 +54,68 @@ describe('rides', () => {
         const late = (await rides.reader(RIDE_ID)).summary();
         expect(late.ended).toBe(true);
         expect(late.distanceKm).toBeCloseTo(0.4, 5);
+    });
+
+    test('reads of a ride at the same time take each line once', async () => {
+        const plugin = fakePlugin(fakeClient());
+        const rides = createRides(plugin);
+        plugin.rides.set(RIDE_ID, rideFile());
+        const [reader] = await Promise.all([rides.reader(RIDE_ID), rides.reader(RIDE_ID), rides.reader(RIDE_ID)]);
+        expect(reader.summary().distanceKm).toBeCloseTo(0.4, 5);
+        expect((await rides.reader(RIDE_ID)).summary().distanceKm).toBeCloseTo(0.4, 5);
+    });
+
+    test('watching the rides: the history is shown again when a ride starts or ends, by hand or by itself', async () => {
+        const plugin = fakePlugin(fakeClient());
+        const rides = createRides(plugin);
+        /** @type {({ id: number, paused: boolean } | null)[]} */
+        const current = [];
+        let histories = 0;
+        const refresh = watchRides(rides, {
+            showCurrent: async (active) => {
+                current.push(active);
+            },
+            showHistory: async () => {
+                histories += 1;
+            },
+        });
+        await refresh();
+        expect(current).toEqual([null]);
+        expect(histories).toBe(1);
+        await refresh();
+        expect(histories).toBe(1);
+        // Auto-ride starts a ride in the service, with the tab open.
+        const id = await rides.start();
+        await refresh();
+        expect(current.at(-1)).toEqual({ id, paused: false });
+        expect(histories).toBe(2);
+        await rides.setPaused(true);
+        await refresh();
+        expect(current.at(-1)).toEqual({ id, paused: true });
+        expect(histories).toBe(2);
+        // Auto-ride stops it: it leaves the current ride and joins the history.
+        await plugin.stopRide();
+        await refresh();
+        expect(current.at(-1)).toBeNull();
+        expect(histories).toBe(3);
+    });
+
+    test('watching the rides: refreshes asked at the same time run one after the other, never at once', async () => {
+        const plugin = fakePlugin(fakeClient());
+        const rides = createRides(plugin);
+        let running = 0;
+        let most = 0;
+        const refresh = watchRides(rides, {
+            showCurrent: async () => {
+                running += 1;
+                most = Math.max(most, running);
+                await new Promise((resolve) => setTimeout(resolve, 5));
+                running -= 1;
+            },
+            showHistory: async () => undefined,
+        });
+        await Promise.all([refresh(), refresh(), refresh(), refresh()]);
+        expect(most).toBe(1);
     });
 
     test('one ride, or the whole history, is exported as one GPX file through the share menu', async () => {

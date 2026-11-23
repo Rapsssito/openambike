@@ -1,13 +1,13 @@
 // The automatic options, auto-lock, auto-unlock and auto-ride: settings of the phone that the app's native service keeps
 // (Android only), shown in Settings, with or without a bike connected. Auto-connect has no switch of its own: it runs
 // while auto-lock or auto-ride is on, which need it, and stops once both are off.
-import { bicycle, bluetooth, lockClosed, lockOpen, pulse, warning } from 'ionicons/icons';
+import { bicycle, bluetooth, lockClosed, lockOpen, time, warning } from 'ionicons/icons';
 
 import { needsAutoConnect } from '../auto-connect.js';
 import { t } from '../i18n/i18n.js';
-import { describeActivity } from './activity.js';
+import { describeActivity, RECENT_EVENTS } from './activity.js';
 import { describeError } from './errors.js';
-import { actionRow, confirmAction, el, fold, section, showToast, switchRow } from './ui.js';
+import { actionRow, button, card, confirmAction, el, fold, openSheet, section, showToast, switchRow } from './ui.js';
 
 /** @typedef {import('../storage/key-store.js').KeyStore} KeyStore */
 /** @typedef {import('../auto-connect.js').AutoConnect} AutoConnect */
@@ -131,24 +131,41 @@ export function automaticSection({ autoConnect, keyStore, address, onShow }) {
     });
     autoUnlockRow.element.hidden = true;
 
-    // The activity, folded: what auto-connect does now and where its timers stand, read every second while open and on
-    // screen, and its history.
-    const nowList = el('div');
-    const historyList = el('div');
+    // The history, folded: the signal as last read, read every second while open and on screen, and what auto-connect
+    // did and why, newest first: the newest few, and all of them in a sheet on asking, so that the page stays short.
+    const signalList = el('div');
+    const recentList = el('div');
     /** @param {string} first @param {string} second */
     const line = (first, second) =>
         el('div', { class: 'fold-line' }, [el('span', {}, [first]), el('span', {}, [second])]);
+    /** @type {{ time: string, text: string }[]} */
+    let allEvents = [];
+    const showAllButton = button(t('activity.showAll'), { fill: 'outline' });
+    showAllButton.hidden = true;
+    showAllButton.addEventListener('click', () =>
+        openSheet(t('activity.title'), [
+            card([
+                el(
+                    'div',
+                    { class: 'history-lines' },
+                    allEvents.map(({ time: at, text }) => line(at, text))
+                ),
+            ]),
+        ])
+    );
     const readActivity = async () => {
         if (!autoConnect || document.visibilityState !== 'visible') return;
         const activity = await autoConnect.activity().catch(() => null);
         if (!activity) return;
-        const { now, history } = describeActivity(activity, automatic);
-        nowList.replaceChildren(...now.map(({ label, value }) => line(label, value)));
-        historyList.replaceChildren(
-            ...(history.length > 0
-                ? history.map(({ time, text }) => line(time, text))
+        const { signal, recent, history } = describeActivity(activity);
+        allEvents = history;
+        signalList.replaceChildren(line(t('activity.signal'), signal));
+        recentList.replaceChildren(
+            ...(recent.length > 0
+                ? recent.map(({ time: at, text }) => line(at, text))
                 : [el('div', { class: 'fold-line' }, [t('activity.none')])])
         );
+        showAllButton.hidden = history.length <= RECENT_EVENTS;
     };
     /** @type {ReturnType<typeof setInterval> | null} */
     let activityTimer = null;
@@ -157,14 +174,9 @@ export function automaticSection({ autoConnect, keyStore, address, onShow }) {
         activityTimer = null;
     };
     const activityFold = fold({
-        iconName: pulse,
+        iconName: time,
         label: t('activity.title'),
-        content: [
-            el('p', { class: 'fold-heading' }, [t('activity.now')]),
-            nowList,
-            el('p', { class: 'fold-heading' }, [t('activity.history')]),
-            historyList,
-        ],
+        content: [signalList, recentList, showAllButton],
         onToggle: (open) => {
             stopActivity();
             if (!open) return;

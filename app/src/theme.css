@@ -1042,6 +1042,10 @@ ion-toast.toast-error {
     font-size: 0.85rem;
 }
 
+.history-lines {
+    padding: 8px 16px;
+}
+
 .fold-line > :first-child {
     flex: 0 0 auto;
     min-width: 5.5rem;

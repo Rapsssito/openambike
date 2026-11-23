@@ -37,15 +37,6 @@ final class AutoRide {
     private boolean armed = true;
     private long lastMoved = Long.MIN_VALUE / 2;
 
-    /** Where auto-ride stands, for the app to show. */
-    static final class Preview {
-        boolean riding;
-        /** Not riding, the bike moving: how long until a ride starts; null otherwise. */
-        Long startInMs;
-        /** Riding a ride it started, the bike standing: how long until auto-connect lets it go; null otherwise. */
-        Long stopInMs;
-    }
-
     AutoRide(Actions actions, Settings settings) {
         this.actions = actions;
         this.settings = settings;
@@ -97,17 +88,6 @@ final class AutoRide {
         started = false;
         armed = false;
         movingSince = null;
-    }
-
-    /** @param letGoInMs how long until auto-connect lets the bike go without the rider walking away; null if not counting. */
-    Preview preview(long now, Long letGoInMs) {
-        Preview preview = new Preview();
-        preview.riding = riding;
-        if (riding && started && letGoInMs != null && now - lastMoved >= settings.gapMs) preview.stopInMs = letGoInMs;
-        if (!riding && armed && movingSince != null && now - lastMove <= settings.gapMs) {
-            preview.startInMs = Math.max(0, settings.movingMs - (lastMove - movingSince));
-        }
-        return preview;
     }
 
     /** Called about twice a second while it runs. */

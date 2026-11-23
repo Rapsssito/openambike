@@ -1,9 +1,6 @@
 package org.openambike.app.link;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -143,30 +140,5 @@ public class AutoRideTest {
         ride.letGo();
         move(22_000);
         assertEquals(List.of("start", "start"), done);
-    }
-
-    @Test
-    public void thePreviewCountsDownToTheStartWhileMovingAndToTheLetGoWhileStanding() {
-        wheel(3_000);
-        assertNull(ride.preview(now, null).startInMs);
-        move(3_000);
-        AutoRide.Preview moving = ride.preview(now, null);
-        assertFalse(moving.riding);
-        assertEquals(Long.valueOf(3_000), moving.startInMs);
-        move(3_000);
-        assertNull(ride.preview(now, 42_000L).stopInMs);
-        stand(5_000);
-        AutoRide.Preview standing = ride.preview(now, 42_000L);
-        assertTrue(standing.riding);
-        assertNull(standing.startInMs);
-        assertEquals(Long.valueOf(42_000), standing.stopInMs);
-        assertNull(ride.preview(now, null).stopInMs);
-    }
-
-    @Test
-    public void aRideStartedByHandHasNoCountdownToItsStop() {
-        ride.startedByHand(now);
-        stand(5_000);
-        assertNull(ride.preview(now, 42_000L).stopInMs);
     }
 }

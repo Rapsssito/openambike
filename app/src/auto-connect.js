@@ -9,30 +9,15 @@ import { rideConfig } from './rides/rides.js';
 /** @typedef {import('./ble/native-client.js').BikeLinkPlugin} BikeLinkPlugin */
 
 /**
- * What auto-connect does, as the service says it: where its timers stand, the ride being recorded, and its history,
- * newest first.
+ * What auto-connect does, as the service says it: the signal as last read, how long it still waits for a dropped
+ * connection, and its history, newest first.
  * @typedef {object} Activity
  * @property {boolean} running
- * @property {'OFF' | 'IDLE' | 'NEAR' | 'CONNECTING' | 'CONNECTED' | 'LEAVING' | 'PAUSED'} [state]
  * @property {boolean} [connected] whether the bike is connected and accepted the key, whoever connected it
- * @property {boolean} [locked] the bike's lock as last known, also after the connection ended
- * @property {boolean} [lockHeld] whether the rider's own lock holds against auto-unlock
- * @property {number} [nearDbm] near the bike, before connecting: the advertising's median
- * @property {number} [nearForMs] and for how long it has been heard near
- * @property {number} [signalDbm] connected: the connection signal's median over the far time
- * @property {boolean} [signalSettled] whether readings cover all of the far time
- * @property {number} [signalNowDbm] connected: its latest reading
- * @property {number} [movedAgoMs] since the bike last reported movement, if it has
- * @property {number} [guardLeftMs] how long the ride guard still holds a lock back
- * @property {number} [parkedLeftMs] how long until a bike standing still near is let go
+ * @property {number} [signalNowDbm] connected: the connection signal's latest reading
  * @property {number} [heardDbm] the bike's advertising as last heard
  * @property {number} [heardAgoMs] and how long ago
- * @property {number} [connectInMs] near the bike, its signal strong enough: how long until it connects
- * @property {number} [leaveInMs] connected, the rider leaving: how long until it locks or lets go
  * @property {number} [dropLeftMs] the connection dropped: how long it still waits for it to come back
- * @property {{ active: boolean, auto?: boolean, startInMs?: number, stopInMs?: number }} [ride] whether a ride is
- *     recorded and auto-ride started it; how long until auto-ride starts one while the bike moves, or stops its own while
- *     the bike stands
  * @property {{ at: number, event: string, value: number }[]} [history] `at` in milliseconds since 1970
  */
 
@@ -62,10 +47,15 @@ export const AUTO_CONNECT_THRESHOLDS = Object.freeze({
     farMs: 3_000,
     /** Lets go, and pauses, once the bike has not moved for this long near the phone. */
     parkedMs: 15 * 60_000,
-    /** Never locks while the bike moved in the last this long. */
-    rideGuardMs: 30_000,
-    /** Ends a pause for standing near once the bike has not been heard above `farDbm` for this long: the rider left. */
-    awayMs: 60_000,
+    /** Never locks while the bike reported movement in the last this long: ridden, it reports about once a second. */
+    rideGuardMs: 5_000,
+    /**
+     * The bike out of reach this long means the rider left, not a moment out of reach: a connection that dropped by
+     * itself, the signal strong before, is waited for this long (one that dropped as the signal said the rider was
+     * walking away is not waited for), and a pause for standing near ends once the bike has not been heard above
+     * `farDbm` for this long.
+     */
+    awayMs: 30_000,
 });
 
 /**

@@ -188,13 +188,13 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void itNeverLocksWhileTheBikeMovedInTheLast30Seconds() {
+    public void itNeverLocksWhileTheBikeMovedWithinTheRideGuard() {
         connectedInBackground();
         signal(-60, 31_000);
         auto.moved(now);
-        signal(-90, 20_000);
+        signal(-90, settings.rideGuardMs - 500);
         assertFalse(actions.did("lock"));
-        signal(-90, 11_000);
+        signal(-90, 1_000);
         assertTrue(actions.did("lock"));
     }
 
@@ -279,19 +279,19 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void aPauseForStandingNearEndsOnceTheRiderHasLeftForAMinute() {
+    public void aPauseForStandingNearEndsOnceTheRiderHasLeftForTheAwayTime() {
         connectedInBackground();
         signal(-60, 15 * 60_000 + 1_000);
         auto.lockDone(true, now);
         auto.linkDown(now);
         assertEquals(AutoConnect.State.PAUSED, auto.state());
         assertTrue(actions.did("scan slow"));
-        // Still near, or near again within the minute: the pause goes on.
+        // Still near, or near again within the away time: the pause goes on.
         hear(-70, 50_000);
-        hear(-90, 50_000);
+        hear(-90, settings.awayMs - 1_000);
         assertEquals(AutoConnect.State.PAUSED, auto.state());
-        // Then not heard near for a minute: it looks for the bike again.
-        for (long end = now + 61_000; now < end; now += 500) auto.tick(now);
+        // Then not heard near for the away time: it looks for the bike again.
+        for (long end = now + 1_500; now < end; now += 500) auto.tick(now);
         assertEquals(AutoConnect.State.IDLE, auto.state());
     }
 
@@ -416,22 +416,21 @@ public class AutoConnectTest {
 
 
     @Test
-    public void thePreviewCountsDownToTheConnectionAndToTheLockAndKeepsTheLastLock() {
+    public void thePreviewSaysTheSignalOfTheAdvertisingThenOfTheConnection() {
         auto.start(now);
-        hear(-60, 2_000);
+        hear(-66, 2_000);
         AutoConnect.Preview near = auto.preview(now);
-        assertEquals(Integer.valueOf(-60), near.heardDbm);
-        assertTrue(near.connectInMs > 0 && near.connectInMs <= settings.nearMs);
+        assertFalse(near.connected);
+        assertEquals(Integer.valueOf(-66), near.heardDbm);
+        assertEquals(null, near.signalNowDbm);
         hear(-60, 9_000);
-        auto.lockState(false);
         auto.linkUp(now);
-        signal(-60, 31_000);
-        signal(-90, 1_000);
-        AutoConnect.Preview leaving = auto.preview(now);
-        assertEquals(Long.valueOf(settings.farMs - 1_000), leaving.leaveInMs);
-        auto.lockState(true);
-        auto.linkDown(now);
-        assertEquals(Boolean.TRUE, auto.preview(now).lastLocked);
+        assertEquals(null, auto.preview(now).signalNowDbm);
+        signal(-61, 1_000);
+        AutoConnect.Preview connected = auto.preview(now);
+        assertTrue(connected.connected);
+        assertEquals(Integer.valueOf(-61), connected.signalNowDbm);
+        assertEquals(null, connected.dropLeftMs);
     }
 
     @Test
@@ -537,6 +536,107 @@ public class AutoConnectTest {
         auto.tick(now);
         assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
         assertFalse(actions.did("gone"));
+    }
+
+    @Test
+    public void aConnectionBackFromADropDecidesOnAWholeFarTimeOfItsOwnSignal() {
+        connectedThenDropped(false);
+        hear(-74, 500);
+        auto.lockState(false);
+        auto.linkUp(now);
+        // The rider coming back: the first readings are weak, then strong; none of them alone decides.
+        signal(-84, 1_000);
+        assertFalse(actions.did("lock"));
+        signal(-60, settings.farMs);
+        assertFalse(actions.did("lock"));
+        assertFalse(actions.did("disconnect"));
+    }
+
+    @Test
+    public void aConnectionBackFromADropStillWeakForTheFarTimeLocks() {
+        connectedThenDropped(false);
+        hear(-74, 500);
+        auto.lockState(false);
+        auto.linkUp(now);
+        signal(-84, settings.farMs + 1_000);
+        assertTrue(actions.did("lock"));
+    }
+
+    @Test
+    public void walkingAwayFiveSecondsAfterTheBikeStoppedLocks() {
+        connectedInBackground();
+        auto.lockState(false);
+        signal(-60, 5_000);
+        auto.moved(now);
+        signal(-90, 5_500);
+        assertTrue(actions.did("lock"));
+    }
+
+    @Test
+    public void whileTheBikeReportsMovementAWeakSignalNeverLocks() {
+        connectedInBackground();
+        auto.lockState(false);
+        signal(-60, 5_000);
+        // The bike reports its metrics about once a second while ridden.
+        for (long end = now + 60_000; now < end; now += 500) {
+            if (now % 1_000 == 0) auto.moved(now);
+            auto.rssi(-90, now);
+            auto.tick(now);
+        }
+        assertFalse(actions.did("lock"));
+    }
+
+    @Test
+    public void theRiderIsTakenToHaveLeftAfterThirtySecondsOutOfReach() {
+        assertEquals(30_000, new AutoConnect.Settings().awayMs);
+    }
+
+    /** Connected, the bike just stopped, the rider walking away while the ride guard holds the lock back. */
+    private void walkingAwayWithinTheRideGuard(boolean locked) {
+        connectedInBackground();
+        auto.lockState(locked);
+        signal(-60, 5_000);
+        auto.moved(now);
+        signal(-90, settings.farMs + 500);
+        assertFalse(actions.did("lock"));
+        actions.done.clear();
+    }
+
+    @Test
+    public void aDropAsTheRiderWalksAwayIsTakenAsLeavingAtOnce() {
+        walkingAwayWithinTheRideGuard(false);
+        auto.linkDown(now);
+        assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
+        assertTrue(actions.did("gone"));
+        assertEquals(AutoConnect.Event.LINK_LEFT_UNLOCKED, auto.history().get(0).event);
+        assertEquals(List.of("alert MAY_BE_UNLOCKED", "gone", "scan slow"), actions.done);
+        assertEquals(null, auto.preview(now).dropLeftMs);
+        // Coming back is an arrival: near for the near time, then it connects and unlocks.
+        hear(-74, 2_000);
+        assertFalse(actions.did("connect"));
+        hear(-60, 11_000);
+        assertTrue(actions.did("connect"));
+    }
+
+    @Test
+    public void aDropAsTheRiderWalksAwayFromALockedBikeDoesNotAlert() {
+        walkingAwayWithinTheRideGuard(true);
+        auto.linkDown(now);
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        assertTrue(actions.did("gone"));
+        assertEquals(AutoConnect.Event.LINK_LEFT, auto.history().get(0).event);
+    }
+
+    @Test
+    public void aDropWithTheSignalStillStrongWaitsForTheConnection() {
+        connectedInBackground();
+        auto.lockState(false);
+        signal(-60, 5_000);
+        auto.moved(now);
+        auto.linkDown(now);
+        assertFalse(actions.did("gone"));
+        assertEquals(AutoConnect.Event.LINK_LOST, auto.history().get(0).event);
+        assertEquals(30, auto.history().get(0).value);
     }
 
     @Test

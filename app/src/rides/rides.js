@@ -64,8 +64,11 @@ export function rideConfig(units = loadUnits()) {
 
 /** @param {BikeLinkPlugin} plugin */
 export function createRides(plugin) {
-    /** What has been read of each ride, so that a ride that grows is read only from where it was left. */
-    /** @type {Map<number, { reader: RideReader, next: number }>} */
+    /**
+     * What has been read of each ride, so that a ride that grows is read only from where it was left, and the last read
+     * asked: one read at a time, since two from the same place would take the same lines twice.
+     */
+    /** @type {Map<number, { reader: RideReader, next: number, reading: Promise<unknown> }>} */
     const read = new Map();
 
     /**
@@ -73,16 +76,22 @@ export function createRides(plugin) {
      * @param {number} id
      * @returns {Promise<RideReader>}
      */
-    async function reader(id) {
+    function reader(id) {
         let entry = read.get(id);
         if (!entry) {
-            entry = { reader: createRideReader(id), next: 0 };
+            entry = { reader: createRideReader(id), next: 0, reading: Promise.resolve() };
             read.set(id, entry);
         }
-        const { text, next } = await plugin.readRide({ id, from: entry.next });
-        entry.reader.push(text);
-        entry.next = next;
-        return entry.reader;
+        const current = entry;
+        const update = current.reading.then(async () => {
+            const { text, next } = await plugin.readRide({ id, from: current.next });
+            current.reader.push(text);
+            current.next = next;
+            return current.reader;
+        });
+        // A read that failed leaves the next one to try again from the same place.
+        current.reading = update.catch(() => undefined);
+        return update;
     }
 
     /**
@@ -169,3 +178,52 @@ export function createRides(plugin) {
 }
 
 /** @typedef {ReturnType<typeof createRides>} Rides */
+
+/**
+ * Keeps the rides tab up to date with the service, which starts and stops rides by itself (auto-ride) whether the app is
+ * open or not: each refresh shows the ride being recorded, or none, and the history again whenever that ride started or
+ * ended since the last. Refreshes run one after the other; one asked while another runs runs once after it.
+ * @param {Rides} rides
+ * @param {object} show
+ * @param {(active: { id: number, paused: boolean } | null) => Promise<void>} show.showCurrent
+ * @param {(active: { id: number, paused: boolean } | null) => Promise<void>} show.showHistory
+ * @returns {() => Promise<void>}
+ */
+export function watchRides(rides, { showCurrent, showHistory }) {
+    /** The ride recorded at the last refresh, or null; undefined before the first. */
+    /** @type {number | null | undefined} */
+    let shownId;
+    /** @type {Promise<void> | null} */
+    let running = null;
+    /** @type {Promise<void> | null} */
+    let queued = null;
+
+    async function run() {
+        const active = await rides.active();
+        const id = active?.id ?? null;
+        const changed = id !== shownId;
+        shownId = id;
+        await showCurrent(active);
+        if (changed) await showHistory(active);
+    }
+
+    /** @returns {Promise<void>} */
+    function refresh() {
+        if (queued) return queued;
+        if (running) {
+            queued = running
+                .catch(() => undefined)
+                .then(() => {
+                    queued = null;
+                    return refresh();
+                });
+            return queued;
+        }
+        running = run().finally(() => {
+            running = null;
+        });
+        return running;
+    }
+
+    return refresh;
+}

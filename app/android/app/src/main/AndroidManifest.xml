@@ -34,12 +34,13 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location" />
 
-        <!-- Starts auto-connect again after the phone restarts, if it was on. -->
+        <!-- Starts auto-connect again after the phone restarts or the app is updated, if it was on. -->
         <receiver
             android:name=".link.BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
