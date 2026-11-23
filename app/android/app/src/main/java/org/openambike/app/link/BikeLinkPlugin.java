@@ -509,8 +509,9 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
 
     @PluginMethod
     public void readRide(PluginCall call) {
-        Long id = call.getLong("id");
-        long from = call.getLong("from", 0L);
+        Long id = JsonNumbers.asLong(call.getData().opt("id"));
+        Long fromValue = JsonNumbers.asLong(call.getData().opt("from"));
+        long from = fromValue != null ? fromValue : 0L;
         if (id == null) {
             call.reject("id required.");
             return;
@@ -540,7 +541,7 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
 
     @PluginMethod
     public void saveRideSummary(PluginCall call) {
-        Long id = call.getLong("id");
+        Long id = JsonNumbers.asLong(call.getData().opt("id"));
         String summary = call.getString("summary");
         if (id == null || summary == null) {
             call.reject("id and summary required.");
@@ -558,7 +559,7 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
 
     @PluginMethod
     public void deleteRide(PluginCall call) {
-        Long id = call.getLong("id");
+        Long id = JsonNumbers.asLong(call.getData().opt("id"));
         if (id == null) {
             call.reject("id required.");
             return;
