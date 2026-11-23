@@ -34,10 +34,19 @@ public class AutoRideTest {
         now = 1_000_000;
     }
 
-    /** The bike reports movement once a second for {@code ms}, ticking as the service does. */
+    /** The bike, pedalled, reports movement once a second for {@code ms}, ticking as the service does. */
     private void move(long ms) {
+        report(ms, true);
+    }
+
+    /** The bike reports movement with no rider's power, as when wheeled, once a second for {@code ms}. */
+    private void wheel(long ms) {
+        report(ms, false);
+    }
+
+    private void report(long ms, boolean pedalled) {
         for (long end = now + ms; now < end; now += 1000) {
-            ride.bikeMoved(now);
+            ride.bikeMoved(now, pedalled);
             ride.tick(now);
         }
     }
@@ -47,40 +56,56 @@ public class AutoRideTest {
     }
 
     @Test
-    public void aRideStartsOnceTheBikeMovedFor20Seconds() {
-        move(20_000);
+    public void aRideStartsOnceTheBikeMovedFor5SecondsFromThePedalling() {
+        move(5_000);
         assertEquals(List.of(), done);
-        move(2_000);
+        move(1_000);
         assertEquals(List.of("start"), done);
     }
 
     @Test
-    public void wheelingTheBikeOutInShortPushesStartsNoRide() {
-        for (int i = 0; i < 10; i++) {
-            move(5_000);
-            stand(5_000);
-        }
+    public void wheelingTheBikeStartsNoRide() {
+        wheel(10 * 60_000);
         assertEquals(List.of(), done);
     }
 
     @Test
-    public void aRideItStartedStopsAfter15MinutesStandingAndEndsAtItsLastMovement() {
-        move(22_000);
+    public void movementBeforeThePedallingDoesNotCount() {
+        wheel(30_000);
+        move(5_000);
+        assertEquals(List.of(), done);
+        move(1_000);
+        assertEquals(List.of("start"), done);
+    }
+
+    @Test
+    public void aMomentStandingCountsTheMovementAgainFromTheNextPedalling() {
+        move(4_000);
+        stand(4_000);
+        wheel(10_000);
+        assertEquals(List.of(), done);
+        move(5_000);
+        assertEquals(List.of(), done);
+        move(1_000);
+        assertEquals(List.of("start"), done);
+    }
+
+    @Test
+    public void aShortGapWithinTheMovementKeepsTheCount() {
+        move(3_000);
+        stand(2_000);
+        wheel(1_000);
+        assertEquals(List.of("start"), done);
+    }
+
+    @Test
+    public void aRideItStartedGoesOnWhileTheBikeStandsUntilAutoConnectLetsItGo() {
+        move(6_000);
         long lastMoved = now - 1000;
-        stand(14 * 60_000);
+        stand(30 * 60_000);
         assertEquals(List.of("start"), done);
-        stand(60_000);
+        ride.letGo();
         assertEquals(List.of("start", "stop at " + lastMoved), done);
-    }
-
-    @Test
-    public void gpsMovementKeepsTheRideGoingWithoutTheBike() {
-        move(22_000);
-        for (int i = 0; i < 20 * 60; i++) {
-            ride.gpsMoved(now);
-            stand(1000);
-        }
-        assertEquals(List.of("start"), done);
     }
 
     @Test
@@ -121,16 +146,27 @@ public class AutoRideTest {
     }
 
     @Test
-    public void thePreviewCountsDownToTheStartWhileMovingAndToTheStopWhileStanding() {
-        move(10_000);
-        AutoRide.Preview moving = ride.preview(now);
+    public void thePreviewCountsDownToTheStartWhileMovingAndToTheLetGoWhileStanding() {
+        wheel(3_000);
+        assertNull(ride.preview(now, null).startInMs);
+        move(3_000);
+        AutoRide.Preview moving = ride.preview(now, null);
         assertFalse(moving.riding);
-        assertEquals(Long.valueOf(11_000), moving.startInMs);
-        move(12_000);
+        assertEquals(Long.valueOf(3_000), moving.startInMs);
+        move(3_000);
+        assertNull(ride.preview(now, 42_000L).stopInMs);
         stand(5_000);
-        AutoRide.Preview standing = ride.preview(now);
+        AutoRide.Preview standing = ride.preview(now, 42_000L);
         assertTrue(standing.riding);
         assertNull(standing.startInMs);
-        assertEquals(Long.valueOf(15 * 60_000 - 6_000), standing.stopInMs);
+        assertEquals(Long.valueOf(42_000), standing.stopInMs);
+        assertNull(ride.preview(now, null).stopInMs);
+    }
+
+    @Test
+    public void aRideStartedByHandHasNoCountdownToItsStop() {
+        ride.startedByHand(now);
+        stand(5_000);
+        assertNull(ride.preview(now, 42_000L).stopInMs);
     }
 }

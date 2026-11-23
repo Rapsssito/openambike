@@ -29,6 +29,7 @@ import { rideConfig } from './rides/rides.js';
  * @property {number} [heardAgoMs] and how long ago
  * @property {number} [connectInMs] near the bike, its signal strong enough: how long until it connects
  * @property {number} [leaveInMs] connected, the rider leaving: how long until it locks or lets go
+ * @property {number} [dropLeftMs] the connection dropped: how long it still waits for it to come back
  * @property {{ active: boolean, auto?: boolean, startInMs?: number, stopInMs?: number }} [ride] whether a ride is
  *     recorded and auto-ride started it; how long until auto-ride starts one while the bike moves, or stops its own while
  *     the bike stands

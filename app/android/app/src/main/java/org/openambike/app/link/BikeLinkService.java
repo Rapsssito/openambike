@@ -316,6 +316,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (preview.heardDbm != null) result.put("heardDbm", preview.heardDbm).put("heardAgoMs", preview.heardAgoMs);
         if (preview.connectInMs != null) result.put("connectInMs", preview.connectInMs);
         if (preview.leaveInMs != null) result.put("leaveInMs", preview.leaveInMs);
+        if (preview.dropLeftMs != null) result.put("dropLeftMs", preview.dropLeftMs);
         if (preview.nearDbm != null) result.put("nearDbm", Math.round(preview.nearDbm));
         if (preview.signalDbm != null) result.put("signalDbm", Math.round(preview.signalDbm));
         if (preview.signalNowDbm != null) result.put("signalNowDbm", preview.signalNowDbm);
@@ -324,7 +325,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         JSONObject rideState = new JSONObject().put("active", rideConfig != null);
         if (rideConfig != null) rideState.put("auto", rideConfig.optBoolean("auto", false));
         if (autoRide != null) {
-            AutoRide.Preview ridePreview = autoRide.preview(now);
+            AutoRide.Preview ridePreview = autoRide.preview(now, rideLetGoInMs(preview));
             if (ridePreview.startInMs != null) rideState.put("startInMs", ridePreview.startInMs);
             if (ridePreview.stopInMs != null) rideState.put("stopInMs", ridePreview.stopInMs);
         }
@@ -339,6 +340,15 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             );
         }
         return result.put("history", history);
+    }
+
+    /**
+     * How long until auto-connect takes the rider to have left without them walking away, which ends a ride auto-ride
+     * started: the wait for a dropped connection, or the parked time while connected; null otherwise.
+     */
+    private static Long rideLetGoInMs(AutoConnect.Preview preview) {
+        if (preview.dropLeftMs != null) return preview.dropLeftMs;
+        return preview.state == AutoConnect.State.CONNECTED ? preview.parkedLeftMs : null;
     }
 
     /**
@@ -364,11 +374,15 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         });
     }
 
-    /** The rider disconnected in the app: auto-connect pauses until they connect again. */
+    /**
+     * The rider disconnected in the app: auto-connect pauses until they connect again, and a ride auto-ride started
+     * ends, since nothing would end it before the pause does.
+     */
     void pauseAutoConnect() {
         if (link == null) return;
         link.post(() -> {
             if (auto != null) auto.userDisconnected(now());
+            if (autoRide != null) autoRide.letGo();
         });
     }
 
@@ -470,9 +484,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             Set<UUID> characteristics = new HashSet<>();
             for (int i = 0; i < list.length(); i++) characteristics.add(UUID.fromString(list.getString(i)));
             long id = rideConfig.getLong("id");
-            ride = new RideRecorder(this, rideFile(id), id, characteristics, link.looper(), () -> {
-                if (autoRide != null) autoRide.gpsMoved(now());
-            });
+            ride = new RideRecorder(this, rideFile(id), id, characteristics, link.looper());
             if (rideConfig.optBoolean("paused", false)) ride.pause();
             showStatus();
         } catch (JSONException | IOException | IllegalArgumentException | SecurityException error) {
@@ -798,6 +810,18 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (status == AutoConnect.Status.CONNECTED) showStatus();
     }
 
+    /** A dropped connection did not come back: a ride auto-ride started ends, as when auto-connect lets the bike go. */
+    @Override
+    public void linkGone() {
+        if (autoRide != null) autoRide.letGo();
+    }
+
+    /** The rider left the bike: the lock pressed by hand, kept for auto-unlock, is forgotten. */
+    @Override
+    public void lockHeldEnded() {
+        autoPrefs.edit().putBoolean("lockHeld", false).apply();
+    }
+
     @Override
     public void alert(AutoConnect.Alert alert) {
         if (config == null) return;
@@ -979,7 +1003,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         } else if (auto != null && characteristic.equals(config.movement.characteristic)) {
             if (config.moves(value)) {
                 auto.moved(now());
-                if (autoRide != null) autoRide.bikeMoved(now());
+                if (autoRide != null) autoRide.bikeMoved(now(), config.pedalled(value));
             }
         } else if (characteristic.equals(config.lock.characteristic) && value.length > 0) {
             bikeLock(value[0] != 0);

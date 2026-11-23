@@ -45,6 +45,12 @@ final class AutoConnect {
 
         /** A notification that asks for attention. */
         void alert(Alert alert);
+
+        /** The rider left the bike: a lock pressed by hand no longer holds against auto-unlock. */
+        void lockHeldEnded();
+
+        /** The connection dropped and did not come back within the away time: the rider is taken to have left. */
+        void linkGone();
     }
 
     enum Status {
@@ -113,9 +119,13 @@ final class AutoConnect {
         LEFT_LOCKED_PARKED,
         LOCKED,
         LOCK_FAILED,
-        /** The connection dropped by itself. */
+        /** The connection dropped by itself: it waits for it to come back; value, the away time in seconds. */
         LINK_LOST,
-        /** The connection dropped with auto-lock on and the bike not known to be locked. */
+        /** The connection came back within the away time: it carries on as before the drop. */
+        RECONNECTED,
+        /** The connection did not come back within the away time: the rider is taken to have left. */
+        LINK_GONE,
+        /** As above, with auto-lock on and the bike not known to be locked. */
         LINK_LOST_UNLOCKED,
         PAUSED_BY_RIDER,
         PAUSED_PARKED,
@@ -166,6 +176,8 @@ final class AutoConnect {
         Long connectInMs;
         /** Connected, the rider leaving: how long until it locks or lets go; null otherwise. */
         Long leaveInMs;
+        /** The connection dropped: how long it still waits for it to come back; null otherwise. */
+        Long dropLeftMs;
     }
 
     /** How many events the history keeps. */
@@ -188,7 +200,7 @@ final class AutoConnect {
     private boolean linkReady;
     /** The bike's lock as last read or notified; null when not known on this connection. */
     private Boolean locked;
-    /** Whether the rider locked the bike in the app, and has not unlocked it there since. */
+    /** Whether the rider locked the bike in the app, and has neither unlocked it there nor left it since. */
     private boolean lockHeld;
     /** When the bike last reported movement; long before anything, until it does. */
     private long lastMoved = Long.MIN_VALUE / 2;
@@ -196,6 +208,14 @@ final class AutoConnect {
     private long since;
     private long scanModeSince = Long.MIN_VALUE / 2;
     private boolean leavingParked;
+    /**
+     * When the connection dropped by itself, while it waits for it to come back: within the away time, a connection
+     * carries on as before the drop; null otherwise. Whether the bike may then have been unlocked, and when the
+     * connection had begun, from which the parked time goes on counting.
+     */
+    private Long droppedAt;
+    private boolean droppedUnlocked;
+    private long droppedSince;
     /** Whether the pause came from the bike standing near: it then ends by itself once the rider has left. */
     private boolean pausedParked;
     /** When the bike was last heard above the far threshold, during a pause for standing near. */
@@ -276,6 +296,7 @@ final class AutoConnect {
         } else if (state == State.CONNECTED && nearSeen && weakSince != null) {
             preview.leaveInMs = Math.max(Math.max(0, settings.farMs - (now - weakSince)), preview.guardLeftMs);
         }
+        if (droppedAt != null) preview.dropLeftMs = Math.max(0, settings.awayMs - (now - droppedAt));
         return preview;
     }
 
@@ -288,6 +309,7 @@ final class AutoConnect {
     void stop() {
         if (state == State.IDLE || state == State.NEAR) actions.stopScan();
         state = State.OFF;
+        droppedAt = null;
     }
 
     /** After a pause: the app asked to connect, or was opened. */
@@ -301,6 +323,7 @@ final class AutoConnect {
     /** The rider disconnected in the app: auto-connect waits until they connect again. */
     void userDisconnected(long now) {
         if (state == State.OFF) return;
+        droppedAt = null;
         if (state == State.IDLE || state == State.NEAR || pausedParked) actions.stopScan();
         state = State.PAUSED;
         pausedParked = false;
@@ -321,7 +344,7 @@ final class AutoConnect {
             }
             actions.status(Status.CONNECTED);
         } else {
-            if (before != State.IDLE) look(false, now);
+            if (before != State.IDLE) look(droppedAt != null, now);
             actions.status(Status.LOOKING);
         }
     }
@@ -340,6 +363,14 @@ final class AutoConnect {
     void heard(int rssi, long now) {
         heardDbm = rssi;
         heardAt = now;
+        if (droppedAt != null && (state == State.IDLE || state == State.NEAR) && rssi >= settings.farDbm) {
+            // The connection dropped a moment ago: it connects again at once, with the rider still in reach.
+            actions.stopScan();
+            state = State.CONNECTING;
+            log(Event.CONNECTING, now, rssi);
+            actions.connect();
+            return;
+        }
         if (state == State.PAUSED && pausedParked && rssi >= settings.farDbm) lastNear = now;
         if (state == State.IDLE && rssi > settings.nearDbm) look(true, now);
         if (state == State.NEAR) readings.add(new Reading(now, rssi));
@@ -348,6 +379,14 @@ final class AutoConnect {
     /** The link is connected and the bike accepted the key. */
     void linkUp(long now) {
         linkReady = true;
+        if (droppedAt != null && (state == State.IDLE || state == State.NEAR || state == State.CONNECTING)) {
+            // Back within the away time: as before the drop, neither an arrival nor a new connection of the app.
+            droppedAt = null;
+            log(Event.RECONNECTED, now, 0);
+            settle(now);
+            since = droppedSince;
+            return;
+        }
         if (state == State.IDLE || state == State.NEAR) {
             // The app connected: held as auto-connect's own, which lets go once the rider has been near and left.
             nearSeen = false;
@@ -380,9 +419,12 @@ final class AutoConnect {
         locked = null;
         switch (state) {
             case CONNECTED:
-                boolean mayBeUnlocked = settings.autoLock && !wasLocked;
-                log(mayBeUnlocked ? Event.LINK_LOST_UNLOCKED : Event.LINK_LOST, now, 0);
-                if (mayBeUnlocked) actions.alert(Alert.MAY_BE_UNLOCKED);
+                // It may be a moment out of reach, as with the phone in a pocket behind the rider's body: it waits
+                // for the away time before it warns or takes the rider to have left.
+                droppedAt = now;
+                droppedUnlocked = settings.autoLock && !wasLocked;
+                droppedSince = since;
+                log(Event.LINK_LOST, now, (int) (settings.awayMs / 1000));
                 settle(now);
                 break;
             case CONNECTING:
@@ -421,7 +463,7 @@ final class AutoConnect {
         if (state == State.PAUSED && pausedParked) resume(now);
     }
 
-    /** The rider locked or unlocked the bike in the app: a lock by hand holds against auto-unlock. */
+    /** The rider locked or unlocked the bike in the app: a lock by hand holds against auto-unlock until the rider left. */
     void setLockHeld(boolean held) {
         lockHeld = held;
     }
@@ -441,10 +483,18 @@ final class AutoConnect {
 
     /** Called about twice a second while it runs. */
     void tick(long now) {
+        if (droppedAt != null && now - droppedAt >= settings.awayMs) {
+            droppedAt = null;
+            log(droppedUnlocked ? Event.LINK_LOST_UNLOCKED : Event.LINK_GONE, now, 0);
+            if (droppedUnlocked) actions.alert(Alert.MAY_BE_UNLOCKED);
+            actions.linkGone();
+            if (state == State.NEAR) look(false, now);
+        }
         if (state == State.PAUSED && pausedParked && now - lastNear >= settings.awayMs) {
             // The rider left the bike: auto-connect looks for it again, slowly, as before the pause.
             pausedParked = false;
             log(Event.RIDER_LEFT, now, 0);
+            endLockHeld();
             look(false, now);
             actions.status(Status.LOOKING);
             return;
@@ -456,7 +506,7 @@ final class AutoConnect {
                 state = State.CONNECTING;
                 log(Event.CONNECTING, now, (int) Math.round(median()));
                 actions.connect();
-            } else if (now - since >= settings.nearMs && now - scanModeSince >= settings.scanModeMs) {
+            } else if (droppedAt == null && now - since >= settings.nearMs && now - scanModeSince >= settings.scanModeMs) {
                 look(false, now);
             }
         } else if (state == State.CONNECTED) {
@@ -504,8 +554,16 @@ final class AutoConnect {
         } else {
             log(lock ? Event.LOCKING_AWAY : alreadyLocked ? Event.LEFT_LOCKED_AWAY : Event.LEAVING_AWAY, now, value);
         }
+        // Leaving because the signal says the rider walked away, not for standing near: the next arrival unlocks.
+        if (!parked) endLockHeld();
         if (lock) actions.lock();
         else actions.disconnect();
+    }
+
+    private void endLockHeld() {
+        if (!lockHeld) return;
+        lockHeld = false;
+        actions.lockHeldEnded();
     }
 
     private void dropBefore(long time) {

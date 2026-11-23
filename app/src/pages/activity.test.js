@@ -84,6 +84,30 @@ describe("auto-connect's activity", () => {
         ]);
     });
 
+    test('a dropped connection: the signal says how long it still waits for it to come back', () => {
+        const { now } = describeActivity(
+            { running: true, state: 'NEAR', connected: false, heardDbm: -70, heardAgoMs: 1_000, dropLeftMs: 42_000 },
+            LOCK
+        );
+        expect(now[0]).toEqual({ label: t('activity.signal'), value: t('activity.signalDropped', { time: '42 s' }) });
+    });
+
+    test('the history says what became of a dropped connection', () => {
+        const at = new Date(2026, 10, 22, 17, 31, 5).getTime();
+        const events = ['LINK_LOST', 'RECONNECTED', 'LINK_GONE', 'LINK_LOST_UNLOCKED'];
+        const { history } = describeActivity(
+            { running: true, state: 'IDLE', history: events.map((event) => ({ at, event, value: 60 })) },
+            LOCK,
+            'en-GB'
+        );
+        expect(history.map((entry) => entry.text)).toEqual([
+            t('activity.LINK_LOST', { value: '60' }),
+            t('activity.RECONNECTED'),
+            t('activity.LINK_GONE'),
+            t('activity.LINK_LOST_UNLOCKED'),
+        ]);
+    });
+
     test('off, it says so', () => {
         expect(describeActivity({ running: false }, LOCK)).toEqual({
             now: [{ label: t('activity.state'), value: t('activity.stateOff') }],

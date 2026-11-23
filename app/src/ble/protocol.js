@@ -386,8 +386,10 @@ export function decodeAsiMetrics(bytes) {
 /**
  * The bytes of ASI metrics that are all zero while the bike stands still: motor power, speed and the rider's power
  * (bytes 4 to 11, as decodeAsiMetrics reads them). Any of them not zero means the bike moves or is pedalled.
+ * `pedalled`: where the two unsigned 16-bit values whose product is the rider's power start; the bike is pedalled only
+ * when both are not zero, since one alone has been seen not zero with no power (docs/protocol.md, "Rider power").
  */
-export const ASI_MOVEMENT_BYTES = Object.freeze({ from: 4, to: 12 });
+export const ASI_MOVEMENT_BYTES = Object.freeze({ from: 4, to: 12, pedalled: Object.freeze([8, 10]) });
 
 /**
  * Where ASI metrics hold the odometer, as decodeAsiMetrics reads it: an unsigned 32-bit little-endian value from byte

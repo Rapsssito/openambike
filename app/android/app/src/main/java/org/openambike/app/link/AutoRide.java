@@ -1,14 +1,12 @@
 package org.openambike.app.link;
 
-import java.util.ArrayDeque;
-
 /**
  * Auto-ride's decisions, with no Android code, so that they can be tested on their own (app/DEVELOPMENT.md,
- * "Auto-connect"): a ride starts once the bike has reported movement for long enough, whoever holds the connection,
- * and the rides it started stop once neither the bike nor the GPS has shown movement for long, or as soon as
- * auto-connect lets the bike go. A ride started by hand is stopped by hand; after the rider stops a ride by hand, none
- * starts until the bike has stood still for long or was let go. It is told what happens, with the time, and is called on
- * one thread only.
+ * "Auto-connect"): a ride starts once the bike, pedalled, has reported movement for long enough, whoever holds the
+ * connection, and the rides it started stop when auto-connect takes the rider to have left: as it lets the bike go, for
+ * the rider walking away or the bike standing still near, or once a dropped connection did not come back. A ride
+ * started by hand is stopped by hand; after the rider stops a ride by hand, none starts until the bike has stood still
+ * for long or was let go. It is told what happens, with the time, and is called on one thread only.
  */
 final class AutoRide {
     interface Actions {
@@ -19,19 +17,19 @@ final class AutoRide {
     }
 
     static final class Settings {
-        /** How long the bike reports movement, within {@link #windowMs}, before a ride starts. */
-        long movingMs = 20_000;
-        long windowMs = 30_000;
-        /** A gap between two reports of movement longer than this is a moment standing, not part of the movement. */
+        /** How long the bike reports movement, from a report that it is pedalled, before a ride starts. */
+        long movingMs = 5_000;
+        /** A gap between two reports of movement longer than this is a moment standing: the movement counts again. */
         long gapMs = 3_000;
-        /** As long as auto-connect waits before it lets a parked bike go. */
+        /** After a stop by hand, how long the bike stands still before a ride may start again: the parked time. */
         long parkedMs = 15 * 60_000;
     }
 
     private final Actions actions;
     private final Settings settings;
-    /** When the bike reported movement, within the window, while no ride is recorded. */
-    private final ArrayDeque<Long> moves = new ArrayDeque<>();
+    /** No ride recorded: when the movement counted began, with the bike pedalled, and when it was last reported. */
+    private Long movingSince;
+    private long lastMove;
     /** Whether a ride is recorded, and whether auto-ride started it. */
     private boolean riding;
     private boolean started;
@@ -44,7 +42,7 @@ final class AutoRide {
         boolean riding;
         /** Not riding, the bike moving: how long until a ride starts; null otherwise. */
         Long startInMs;
-        /** Riding a ride it started, the bike standing: how long until it stops; null otherwise. */
+        /** Riding a ride it started, the bike standing: how long until auto-connect lets it go; null otherwise. */
         Long stopInMs;
     }
 
@@ -60,35 +58,28 @@ final class AutoRide {
         lastMoved = Math.max(lastMoved, now);
     }
 
-    /** The bike reported movement. */
-    void bikeMoved(long now) {
+    /**
+     * The bike reported movement; {@code pedalled}, with the rider's power, which wheeling the bike does not give. The
+     * movement counts from a report that it is pedalled, so that wheeling the bike out starts no ride.
+     */
+    void bikeMoved(long now, boolean pedalled) {
         lastMoved = now;
         if (riding || !armed) return;
-        moves.add(now);
-        while (!moves.isEmpty() && moves.peek() < now - settings.windowMs) moves.poll();
-        long moving = 0;
-        Long previous = null;
-        for (long at : moves) {
-            if (previous != null && at - previous <= settings.gapMs) moving += at - previous;
-            previous = at;
-        }
-        if (moving >= settings.movingMs) {
-            moves.clear();
+        if (movingSince != null && now - lastMove > settings.gapMs) movingSince = null;
+        if (movingSince == null && pedalled) movingSince = now;
+        lastMove = now;
+        if (movingSince != null && now - movingSince >= settings.movingMs) {
+            movingSince = null;
             riding = true;
             started = true;
             actions.startRide();
         }
     }
 
-    /** The GPS says the phone moves: a ride going on does not stop for standing still. */
-    void gpsMoved(long now) {
-        if (riding) lastMoved = now;
-    }
-
-    /** Auto-connect let the bike go: the rider left it. */
+    /** Auto-connect took the rider to have left: it let the bike go, or a dropped connection did not come back. */
     void letGo() {
         armed = true;
-        moves.clear();
+        movingSince = null;
         if (riding && started) stop();
     }
 
@@ -97,7 +88,7 @@ final class AutoRide {
         riding = true;
         started = false;
         lastMoved = Math.max(lastMoved, now);
-        moves.clear();
+        movingSince = null;
     }
 
     /** The rider stopped a ride by hand: none starts until the bike stood still for long or was let go. */
@@ -105,33 +96,23 @@ final class AutoRide {
         riding = false;
         started = false;
         armed = false;
-        moves.clear();
+        movingSince = null;
     }
 
-    Preview preview(long now) {
+    /** @param letGoInMs how long until auto-connect lets the bike go without the rider walking away; null if not counting. */
+    Preview preview(long now, Long letGoInMs) {
         Preview preview = new Preview();
         preview.riding = riding;
-        if (riding && started && now - lastMoved >= settings.gapMs) {
-            preview.stopInMs = Math.max(0, settings.parkedMs - (now - lastMoved));
-        }
-        if (!riding && armed && !moves.isEmpty() && now - moves.peekLast() <= settings.gapMs) {
-            long moving = 0;
-            Long previous = null;
-            for (long at : moves) {
-                if (at < now - settings.windowMs) continue;
-                if (previous != null && at - previous <= settings.gapMs) moving += at - previous;
-                previous = at;
-            }
-            preview.startInMs = Math.max(0, settings.movingMs - moving);
+        if (riding && started && letGoInMs != null && now - lastMoved >= settings.gapMs) preview.stopInMs = letGoInMs;
+        if (!riding && armed && movingSince != null && now - lastMove <= settings.gapMs) {
+            preview.startInMs = Math.max(0, settings.movingMs - (lastMove - movingSince));
         }
         return preview;
     }
 
     /** Called about twice a second while it runs. */
     void tick(long now) {
-        boolean parked = now - lastMoved >= settings.parkedMs;
-        if (riding && started && parked) stop();
-        else if (!riding && !armed && parked) armed = true;
+        if (!riding && !armed && now - lastMoved >= settings.parkedMs) armed = true;
     }
 
     private void stop() {

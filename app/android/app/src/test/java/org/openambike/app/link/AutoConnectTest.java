@@ -55,6 +55,16 @@ public class AutoConnectTest {
             done.add("alert " + alert);
         }
 
+        @Override
+        public void lockHeldEnded() {
+            done.add("lock held ended");
+        }
+
+        @Override
+        public void linkGone() {
+            done.add("gone");
+        }
+
         boolean did(String action) {
             return done.contains(action);
         }
@@ -295,15 +305,6 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void aLinkLostBeforeLockingWarnsThatTheBikeMayBeUnlocked() {
-        connectedInBackground();
-        auto.lockState(false);
-        auto.linkDown(now);
-        assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
-        assertEquals(AutoConnect.State.IDLE, auto.state());
-    }
-
-    @Test
     public void aFailedLockWarnsAndStillDisconnects() {
         connectedInBackground();
         signal(-60, 31_000);
@@ -367,6 +368,8 @@ public class AutoConnectTest {
 
         auto.setLockHeld(false);
         auto.linkDown(now);
+        now += settings.awayMs;
+        auto.tick(now);
         hear(-60, 11_000);
         auto.lockState(true);
         auto.linkUp(now);
@@ -454,5 +457,158 @@ public class AutoConnectTest {
         signal(-54, 6_000);
         assertFalse(actions.did("unlock"));
         assertEquals(AutoConnect.Event.UNLOCK_HELD, auto.history().get(0).event);
+    }
+
+    /** Connected because the phone came near, the bike locked by hand. */
+    private void heldAndConnected() {
+        settings.autoUnlock = true;
+        auto.setLockHeld(true);
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertFalse(actions.did("unlock"));
+    }
+
+    @Test
+    public void aLockByHandEndsOnceTheRiderWalkedAwayAndTheNextArrivalUnlocks() {
+        heldAndConnected();
+        signal(-60, 5_000);
+        signal(-90, 4_000);
+        assertTrue(actions.did("lock held ended"));
+        assertTrue(actions.did("disconnect"));
+        auto.linkDown(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertTrue(actions.did("unlock"));
+    }
+
+    @Test
+    public void aLockByHandHoldsWhileTheBikeStandsNearAndEndsOnceTheRiderLeft() {
+        heldAndConnected();
+        signal(-60, settings.parkedMs + 1_000);
+        assertTrue(actions.did("disconnect"));
+        auto.linkDown(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+        assertFalse(actions.did("lock held ended"));
+        now += settings.awayMs;
+        auto.tick(now);
+        assertTrue(actions.did("lock held ended"));
+    }
+
+    @Test
+    public void aLockByHandHoldsOverADroppedConnection() {
+        heldAndConnected();
+        signal(-60, 5_000);
+        auto.linkDown(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertFalse(actions.did("unlock"));
+        assertFalse(actions.did("lock held ended"));
+    }
+
+    /** Connected because the phone came near, then the connection drops by itself. */
+    private void connectedThenDropped(boolean locked) {
+        settings.autoUnlock = true;
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(locked);
+        auto.linkUp(now);
+        actions.done.clear();
+        signal(-60, 5_000);
+        auto.linkDown(now);
+    }
+
+    @Test
+    public void aShortDropIsCarriedOnWithoutAlertNorUnlockReconnectingAtOnce() {
+        connectedThenDropped(false);
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        assertEquals(List.of("scan fast"), actions.done);
+        hear(-74, 500);
+        assertTrue(actions.did("connect"));
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertEquals(AutoConnect.State.CONNECTED, auto.state());
+        assertEquals(AutoConnect.Event.RECONNECTED, auto.history().get(0).event);
+        assertFalse(actions.did("unlock"));
+        now += settings.awayMs;
+        auto.tick(now);
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        assertFalse(actions.did("gone"));
+    }
+
+    @Test
+    public void aDropOfAMinuteAlertsThatTheBikeMayBeUnlockedAndTellsTheRiderLeft() {
+        connectedThenDropped(false);
+        assertEquals(AutoConnect.Event.LINK_LOST, auto.history().get(0).event);
+        for (long end = now + settings.awayMs - 500; now < end; now += 500) auto.tick(now);
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        assertFalse(actions.did("gone"));
+        now += 500;
+        auto.tick(now);
+        assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
+        assertTrue(actions.did("gone"));
+        assertEquals(AutoConnect.Event.LINK_LOST_UNLOCKED, auto.history().get(0).event);
+        assertEquals("scan slow", actions.done.get(actions.done.size() - 1));
+    }
+
+    @Test
+    public void aDropOfAMinuteWithTheBikeLockedTellsTheRiderLeftWithoutAlert() {
+        connectedThenDropped(true);
+        now += settings.awayMs;
+        auto.tick(now);
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        assertTrue(actions.did("gone"));
+        assertEquals(AutoConnect.Event.LINK_GONE, auto.history().get(0).event);
+    }
+
+    @Test
+    public void afterADropOfAMinuteComingBackIsAnArrival() {
+        connectedThenDropped(false);
+        now += settings.awayMs;
+        auto.tick(now);
+        hear(-74, 11_000);
+        assertFalse(actions.did("connect"));
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertTrue(actions.did("unlock"));
+    }
+
+    @Test
+    public void aShortDropKeepsTheTimeStandingStill() {
+        settings.autoUnlock = true;
+        auto.start(now);
+        hear(-60, 11_000);
+        auto.lockState(true);
+        auto.linkUp(now);
+        signal(-60, settings.parkedMs - 60_000);
+        auto.linkDown(now);
+        hear(-60, 500);
+        auto.lockState(true);
+        auto.linkUp(now);
+        assertFalse(actions.did("disconnect"));
+        signal(-60, 61_000);
+        assertTrue(actions.did("disconnect"));
+        assertEquals(AutoConnect.Event.LEFT_LOCKED_PARKED, auto.history().get(0).event);
+    }
+
+    @Test
+    public void thePreviewCountsDownTheMinuteAfterADrop() {
+        connectedThenDropped(false);
+        now += 10_000;
+        assertEquals(Long.valueOf(settings.awayMs - 10_000), auto.preview(now).dropLeftMs);
+    }
+
+    @Test
+    public void disconnectingInTheAppEndsTheWaitForADroppedConnection() {
+        connectedThenDropped(false);
+        auto.userDisconnected(now);
+        now += settings.awayMs;
+        auto.tick(now);
+        assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
+        assertFalse(actions.did("gone"));
     }
 }

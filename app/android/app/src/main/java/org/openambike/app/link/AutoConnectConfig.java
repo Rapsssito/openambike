@@ -33,6 +33,12 @@ final class AutoConnectConfig {
     final Exchange movement;
     final int movementFrom;
     final int movementTo;
+    /**
+     * Where the movement characteristic holds two unsigned 16-bit little-endian values whose product is the rider's
+     * power: the bike is pedalled when both are not zero. Empty in a configuration from before it, which then never
+     * says the bike is pedalled, until the app's next connection sends it.
+     */
+    final int[] pedalled;
     final AutoConnect.Settings settings = new AutoConnect.Settings();
     final JSONObject texts;
     /** With auto-ride on, what src/rides/ prepares for a ride, as for one started by hand; null with it off. */
@@ -49,6 +55,9 @@ final class AutoConnectConfig {
         movement = new Exchange(movementJson);
         movementFrom = movementJson.getInt("from");
         movementTo = movementJson.getInt("to");
+        org.json.JSONArray pedalledJson = movementJson.optJSONArray("pedalled");
+        pedalled = new int[pedalledJson == null ? 0 : pedalledJson.length()];
+        for (int i = 0; i < pedalled.length; i++) pedalled[i] = pedalledJson.getInt(i);
         JSONObject thresholds = root.getJSONObject("thresholds");
         settings.nearDbm = thresholds.getInt("nearDbm");
         settings.nearMs = thresholds.getLong("nearMs");
@@ -81,5 +90,14 @@ final class AutoConnectConfig {
             if (value[i] != 0) return true;
         }
         return false;
+    }
+
+    /** Whether a notification of the movement characteristic says the rider pedals. */
+    boolean pedalled(byte[] value) {
+        if (pedalled.length == 0) return false;
+        for (int offset : pedalled) {
+            if (offset + 1 >= value.length || (value[offset] == 0 && value[offset + 1] == 0)) return false;
+        }
+        return true;
     }
 }

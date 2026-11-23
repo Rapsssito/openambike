@@ -35,6 +35,7 @@ describe('auto-connect', () => {
             characteristic: CHARACTERISTIC.asiMetrics.uuid,
             from: 4,
             to: 12,
+            pedalled: [8, 10],
         });
         expect(config.thresholds).toEqual(AUTO_CONNECT_THRESHOLDS);
         expect(config.thresholds).toMatchObject({

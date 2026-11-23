@@ -30,13 +30,9 @@ final class RideRecorder implements LocationListener {
     static final long FIX_INTERVAL_MS = 1000;
     /** The version of the file's format, written in its first line. */
     static final int FORMAT = 1;
-    /** From this speed, in metres per second, a fix says the phone moves, as src/rides/ride.js reads it. */
-    static final float MOVING_MPS = 1;
 
     private final LocationManager locations;
     private final Set<UUID> characteristics;
-    /** Told when a GPS fix says the phone moves. */
-    private final Runnable onMoving;
     private final BufferedWriter out;
     final long id;
     private boolean paused;
@@ -46,11 +42,10 @@ final class RideRecorder implements LocationListener {
      *
      * @param id the ride's identifier: when it started, in milliseconds since 1970, which also names its file
      */
-    RideRecorder(Context context, File file, long id, Set<UUID> characteristics, Looper looper, Runnable onMoving)
+    RideRecorder(Context context, File file, long id, Set<UUID> characteristics, Looper looper)
         throws IOException {
         this.id = id;
         this.characteristics = characteristics;
-        this.onMoving = onMoving;
         boolean resumed = file.exists();
         out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file, true), StandardCharsets.UTF_8));
         write(event(resumed ? "restart" : "start").put("format", FORMAT));
@@ -117,7 +112,6 @@ final class RideRecorder implements LocationListener {
         if (location.hasAccuracy()) fix.put("acc", location.getAccuracy());
         if (location.hasSpeed()) fix.put("speed", location.getSpeed());
         write(fix);
-        if (location.hasSpeed() && location.getSpeed() >= MOVING_MPS) onMoving.run();
     }
 
     @Override

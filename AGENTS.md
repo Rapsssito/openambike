@@ -30,6 +30,7 @@ Ask in rounds, each question with a recommended option and why; if one is not un
 ## Working
 
 - Search with `rg`.
+- A change of behaviour starts with its tests: change or add them first, see them fail, then change the code until they pass.
 - While working, run only the tests of the files touched; before a commit, the checks of [CONTRIBUTING.md](CONTRIBUTING.md), "Checks and commits", and scan the staged diff for the owner key in `reverse-engineering/private/keys/`, without printing it.
 - Anything may be installed where you run; a tool the project needs every time is added as [CONTRIBUTING.md](CONTRIBUTING.md), "Checks and commits", says.
 - Never print private data ([docs/safety.md](docs/safety.md), "Private data"), even from a file you may read.

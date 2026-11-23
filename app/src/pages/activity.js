@@ -22,10 +22,12 @@ const countdown = (ms) => (ms < 60_000 ? `${Math.ceil(ms / 1000)} s` : duration(
 const dbmText = (dbm) => `${dbm} dBm`;
 
 /**
- * The signal as last read: of the connection while connected, of the bike's advertising otherwise.
+ * The signal as last read: of the connection while connected, of the bike's advertising otherwise; after the connection
+ * dropped, how long auto-connect still waits for it to come back.
  * @param {Activity} activity
  */
 function signalText(activity) {
+    if (activity.dropLeftMs !== undefined) return t('activity.signalDropped', { time: countdown(activity.dropLeftMs) });
     if (activity.connected) {
         return activity.signalNowDbm === undefined ? t('activity.signalMeasuring') : dbmText(activity.signalNowDbm);
     }
