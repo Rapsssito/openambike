@@ -48,3 +48,18 @@ export function duration(ms) {
     const seconds = String(total % 60).padStart(2, '0');
     return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }
+
+/**
+ * The scale of a chart: from the lowest value of its series to the highest, never from zero unless the values go there;
+ * a flat chart gets a little room, none below zero where the values are not below it.
+ * @param {[number, number][][]} values each series as [time, value]
+ * @returns {{ low: number, high: number } | null} null without values
+ */
+export function chartRange(values) {
+    const all = values.flat().map(([, value]) => value);
+    if (all.length === 0) return null;
+    const low = Math.min(...all);
+    const high = Math.max(...all);
+    if (high > low) return { low, high };
+    return { low: low >= 0 ? Math.max(0, low - 1) : low - 1, high: high + 1 };
+}

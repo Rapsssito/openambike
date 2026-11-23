@@ -13,6 +13,7 @@ import {
 
 import { t } from '../i18n/i18n.js';
 import { describeError } from './errors.js';
+import { chartRange } from './format.js';
 
 /**
  * @param {string} tag
@@ -214,7 +215,10 @@ export function readout(label) {
 export function stat(label, iconName) {
     const value = el('div', { class: 'stat-value' }, [t('common.unknown')]);
     const mark = iconName ? [icon(iconName)] : [];
-    const element = el('div', { class: 'stat' }, [el('div', { class: 'stat-label' }, [...mark, label]), value]);
+    const element = el('div', { class: 'stat' }, [
+        el('div', { class: 'stat-label', title: label }, [...mark, el('span', { class: 'stat-label-text' }, [label])]),
+        value,
+    ]);
     return {
         element,
         set(text) {
@@ -315,9 +319,10 @@ export function toggleTile({ iconName, label, on, off, onChange }) {
 }
 
 /**
- * A choice of one among a few options, as a row of large buttons.
+ * A choice of one among a few options, as a row of large buttons, each showing its label, or its icon with the label
+ * read by screen readers.
  * @template {string} T
- * @param {{ label: string, options: { value: T, label: string }[], onChange: (value: T) => Promise<unknown> }} options
+ * @param {{ label: string, options: { value: T, label: string, iconName?: string }[], onChange: (value: T) => Promise<unknown> }} options
  *     `onChange` asks for the change and settles once it is made or refused; a choice made on the device alone shows
  *     it by calling `set` at once
  * @returns {{ element: HTMLElement, set: (value: T | null) => void }}
@@ -326,11 +331,17 @@ export function choice({ label, options, onChange }) {
     /** @type {T | null} */
     let current = null;
     let pending = false;
-    const buttons = options.map(({ value, label: text }) => {
+    const buttons = options.map(({ value, label: text, iconName }) => {
         const button = el(
             'button',
-            { type: 'button', class: 'choice-option', role: 'radio', 'aria-checked': 'false' },
-            [text, pendingSpinner()]
+            {
+                type: 'button',
+                class: 'choice-option',
+                role: 'radio',
+                'aria-checked': 'false',
+                ...(iconName ? { 'aria-label': text, title: text } : {}),
+            },
+            [iconName ? icon(iconName) : text, pendingSpinner()]
         );
         button.addEventListener('click', async () => {
             if (current === value || pending) return;
@@ -624,55 +635,191 @@ export async function chooseOne({ header, message, options, confirm, selected })
     return role === 'confirm' ? /** @type {{ values: T }} */ (data).values : null;
 }
 
+/** How many charts were made, for the ids of their gradients. */
+let charts = 0;
+
 /**
- * A line chart of one or more series over time, drawn in SVG, with the highest value and the unit beside it.
+ * A line chart of one or more series over time, drawn in SVG, with the highest value and the unit beside it. With
+ * `onPick`, it is the larger one: taller, with its scales of values and of time, and touching or dragging it marks a
+ * moment, says the values of each series then, and calls `onPick`.
  * @param {string} label what it shows, for screen readers
- * @param {{ unit: string, series: { name: string, className: string }[] }} options each series drawn in the colour
- *     of its class
+ * @param {object} options
+ * @param {string} options.unit
+ * @param {{ name: string, className: string }[]} options.series each drawn in the colour of its class
+ * @param {(time: number) => void} [options.onPick]
+ * @param {readonly string[]} [options.colours] with one series, its line is drawn from the first colour at the lowest
+ *     value to the last at the highest, as the map is, and the legend is left out
+ * @param {(time: number) => [string, string]} [options.timeText] a moment as two texts, as the time since the start and
+ *     the time of day: both under the larger chart, at its start, middle and end, and in its reading
  * @returns {{ element: HTMLElement, set: (values: [number, number][][]) => void }} `set` takes, for each series,
  *     its points as [time, value]
  */
-export function lineChart(label, { unit, series }) {
+export function lineChart(label, { unit, series, colours, onPick, timeText = (time) => [String(time), ''] }) {
     const width = 320;
-    const height = 120;
+    const height = onPick ? 200 : 120;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', label);
     svg.classList.add('chart-plot');
+    if (onPick) svg.classList.add('large');
+    // The larger chart's grid, under the data: a line at each mark of the scale of values, at the top, middle and bottom.
+    if (onPick) {
+        for (const y of [2, height / 2, height - 2]) {
+            const grid = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            grid.setAttribute('class', 'chart-grid');
+            grid.setAttribute('vector-effect', 'non-scaling-stroke');
+            grid.setAttribute('x1', '0');
+            grid.setAttribute('x2', String(width));
+            grid.setAttribute('y1', String(y));
+            grid.setAttribute('y2', String(y));
+            svg.append(grid);
+        }
+    }
+    // The line's colours by value: a gradient up the chart, from its bottom (the lowest value) to its top (the highest).
+    const gradientId = `chart-gradient-${++charts}`;
+    if (colours) {
+        const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        gradient.setAttribute('id', gradientId);
+        gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+        gradient.setAttribute('x1', '0');
+        gradient.setAttribute('x2', '0');
+        gradient.setAttribute('y1', String(height - 2));
+        gradient.setAttribute('y2', '2');
+        colours.forEach((colour, index) => {
+            const stop = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            stop.setAttribute('offset', String(index / Math.max(1, colours.length - 1)));
+            stop.setAttribute('stop-color', colour);
+            gradient.append(stop);
+        });
+        svg.append(gradient);
+    }
     const lines = series.map(({ className }) => {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
         line.setAttribute('class', `chart-line ${className}`);
         line.setAttribute('vector-effect', 'non-scaling-stroke');
+        if (colours) line.style.stroke = `url(#${gradientId})`;
         svg.append(line);
         return line;
     });
+    const cursor = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    cursor.setAttribute('class', 'chart-cursor');
+    cursor.setAttribute('vector-effect', 'non-scaling-stroke');
+    cursor.setAttribute('y1', '0');
+    cursor.setAttribute('y2', String(height));
+    cursor.style.display = 'none';
+    svg.append(cursor);
     const top = el('span', { class: 'chart-top' }, ['']);
     const legend = el(
         'div',
         { class: 'chart-legend' },
         series.map(({ name, className }) => el('span', { class: `chart-key ${className}` }, [name]))
     );
-    const element = el('div', { class: 'chart' }, [el('div', { class: 'chart-head' }, [top, legend]), svg]);
+    // The larger chart's scales: of values beside it, from the highest to the lowest, and of time under it.
+    const valueMarks = [el('span', {}, ['']), el('span', {}, ['']), el('span', {}, [''])];
+    const timeMarks = [el('span', {}, ['']), el('span', {}, ['']), el('span', {}, [''])];
+    const reading = el('div', { class: 'chart-reading', role: 'status' }, ['']);
+    const element = el('div', { class: 'chart' }, [
+        el('div', { class: 'chart-head' }, colours ? [top] : [top, legend]),
+        ...(onPick
+            ? [
+                  el('div', { class: 'chart-body' }, [el('div', { class: 'chart-values' }, valueMarks), svg]),
+                  el('div', { class: 'chart-scale' }, timeMarks),
+                  reading,
+              ]
+            : [svg]),
+    ]);
+
+    /** @type {[number, number][][]} */
+    let shown = [];
+    let first = 0;
+    let last = 0;
+    /** @type {number | null} */
+    let picked = null;
+
+    /** @param {number} time */
+    const pick = (time) => {
+        picked = time;
+        const x = last > first ? ((time - first) / (last - first)) * width : 0;
+        cursor.setAttribute('x1', x.toFixed(1));
+        cursor.setAttribute('x2', x.toFixed(1));
+        cursor.style.display = '';
+        const values = shown.map((points, index) => {
+            if (points.length === 0) return null;
+            const near = points.reduce((best, point) =>
+                Math.abs(point[0] - time) < Math.abs(best[0] - time) ? point : best
+            );
+            return `${series[index].name} ${Math.round(near[1])} ${unit}`;
+        });
+        const [since, clock] = timeText(time);
+        reading.textContent = [clock ? `${since} (${clock})` : since, ...values.filter(Boolean)].join(' · ');
+        onPick?.(time);
+    };
+    if (onPick) {
+        /** @param {PointerEvent} event */
+        const fromPointer = (event) => {
+            const box = svg.getBoundingClientRect();
+            if (box.width === 0 || last <= first) return;
+            const fraction = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+            pick(first + fraction * (last - first));
+        };
+        svg.addEventListener('pointerdown', (event) => {
+            svg.setPointerCapture?.(event.pointerId);
+            fromPointer(event);
+        });
+        svg.addEventListener('pointermove', (event) => {
+            if (event.buttons > 0 || event.pointerType === 'touch') fromPointer(event);
+        });
+    }
+
     return {
         element,
         set(values) {
+            shown = values;
             const all = values.flat();
-            const first = Math.min(...all.map(([time]) => time));
-            const last = Math.max(...all.map(([time]) => time));
-            const highest = Math.max(1, ...all.map(([, value]) => value));
-            top.textContent = all.length > 0 ? `${Math.round(highest)} ${unit}` : '';
+            first = Math.min(...all.map(([time]) => time));
+            last = Math.max(...all.map(([time]) => time));
+            const range = chartRange(values);
+            const { low, high } = range ?? { low: 0, high: 1 };
+            // The small chart says its range, as its line is drawn between its lowest and highest values; the larger
+            // one says them beside the line.
+            top.textContent = range
+                ? onPick
+                    ? `${Math.round(high)} ${unit}`
+                    : `${Math.round(low)}–${Math.round(high)} ${unit}`
+                : '';
             lines.forEach((line, index) => {
                 const points = (values[index] ?? []).map(([time, value]) => {
                     const x = last > first ? ((time - first) / (last - first)) * width : 0;
-                    const y = height - (value / highest) * (height - 4) - 2;
+                    const y = height - ((value - low) / (high - low)) * (height - 4) - 2;
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                 });
                 line.setAttribute('points', points.join(' '));
             });
+            if (onPick && all.length > 0) {
+                valueMarks[0].textContent = `${Math.round(high)} ${unit}`;
+                valueMarks[1].textContent = `${Math.round((low + high) / 2)}`;
+                valueMarks[2].textContent = `${Math.round(low)}`;
+                [first, (first + last) / 2, last].forEach((time, index) => {
+                    timeMarks[index].textContent = timeText(time).filter(Boolean).join('\n');
+                });
+                if (picked !== null) pick(Math.min(last, Math.max(first, picked)));
+            }
         },
     };
+}
+
+/**
+ * A round button with an icon, laid over the corner of what it is put in, such as a map.
+ * @param {string} iconName an icon from `ionicons/icons`
+ * @param {string} label what it does, for screen readers
+ * @param {() => void} onClick
+ */
+export function overlayButton(iconName, label, onClick) {
+    const element = el('button', { type: 'button', class: 'overlay-button', 'aria-label': label }, [icon(iconName)]);
+    element.addEventListener('click', onClick);
+    return element;
 }
 
 /**

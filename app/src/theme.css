@@ -216,6 +216,13 @@
     color: var(--app-muted);
 }
 
+.stat-label-text {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .stat-value {
     font-size: 1.35rem;
     font-weight: 650;
@@ -1162,6 +1169,135 @@ ion-toast.toast-error {
     color: var(--app-warning);
 }
 
+.chart-plot.large {
+    height: 200px;
+    touch-action: none;
+}
+
+.chart-grid {
+    stroke: var(--app-line);
+    stroke-width: 1;
+}
+
+.chart-cursor {
+    stroke: var(--app-text);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+
+.chart-body {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px;
+}
+
+.chart-values {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 0.7rem;
+    color: var(--app-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.chart-scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--app-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: pre-line;
+    margin-top: 4px;
+    padding-left: 2.5rem;
+}
+
+.chart-scale > :nth-child(2) {
+    text-align: center;
+}
+
+.chart-scale > :last-child {
+    text-align: right;
+}
+
+.map-label {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    max-width: calc(100% - 128px);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--app-text);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+.chart-reading {
+    min-height: 1.4em;
+    margin-top: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A round button over the corner of a map. */
+
+.overlay-frame {
+    position: relative;
+}
+
+.map-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border-radius: 16px;
+    color: var(--app-muted);
+    background: var(--app-surface-2);
+}
+
+.map-loading[hidden] {
+    display: none;
+}
+
+.map-loading-icon {
+    font-size: 2.5rem;
+}
+
+.overlay-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 1.2rem;
+    color: var(--app-text);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow);
+}
+
+.fold-body > .grid-2.inner {
+    padding: 4px 0 0;
+}
+
 /* Rides: the ride being recorded, with its buttons side by side. */
 
 .ride-state {
@@ -1187,6 +1323,14 @@ ion-toast.toast-error {
     border-radius: 16px;
     overflow: hidden;
     background: var(--app-surface-2);
+}
+
+.ride-map.small {
+    height: 180px;
+}
+
+.ride-map.tall {
+    height: 45vh;
 }
 
 /* The card over the tabs that need the bike, while it is not connected; what it covers stays, blurred. */

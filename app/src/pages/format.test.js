@@ -1,4 +1,4 @@
-import { distance, duration, number, speed } from './format.js';
+import { chartRange, distance, duration, number, speed } from './format.js';
 
 describe('format', () => {
     test('a duration is minutes and seconds, with hours from an hour on', () => {
@@ -18,5 +18,34 @@ describe('format', () => {
         expect(distance(3774.23, 'km', 'en')).toBe('3,774.2 km');
         expect(distance(3774.23, 'mi', 'en')).toBe('2,345.2 mi');
         expect(distance(3774.23, 'km', 'en', 0)).toBe('3,774 km');
+    });
+
+    test("a chart's scale runs from its lowest value to its highest, never from zero by default", () => {
+        expect(
+            chartRange([
+                [
+                    [0, 30],
+                    [1, 34],
+                    [2, 31],
+                ],
+            ])
+        ).toEqual({ low: 30, high: 34 });
+        // Several series share one scale.
+        expect(
+            chartRange([
+                [[0, 40]],
+                [
+                    [0, 90],
+                    [1, 120],
+                ],
+            ])
+        ).toEqual({ low: 40, high: 120 });
+        expect(chartRange([[], []])).toBeNull();
+    });
+
+    test('a flat chart gets a little room, and no room below zero where the values are not below it', () => {
+        expect(chartRange([[[0, 30]]])).toEqual({ low: 29, high: 31 });
+        expect(chartRange([[[0, 0]]])).toEqual({ low: 0, high: 1 });
+        expect(chartRange([[[0, -5]]])).toEqual({ low: -6, high: -4 });
     });
 });

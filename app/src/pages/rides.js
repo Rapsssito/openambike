@@ -1,9 +1,26 @@
 // The rides tab, Android only: start, pause and stop a ride, which the app's native service records with the app
 // closed, see it as it goes, and the history of rides, each with its figures, charts and route, exported as GPX one by
 // one or all at once. A ride records whether the bike is connected or not: the bike's figures fill in while it is.
-import { bicycle, map, play, pause, shareOutline, speedometer, stop, time, trash } from 'ionicons/icons';
+import {
+    batteryHalf,
+    bicycle,
+    expand,
+    flash,
+    map,
+    play,
+    pause,
+    person,
+    shareOutline,
+    speedometer,
+    stop,
+    time,
+    trash,
+    trendingUp,
+} from 'ionicons/icons';
 
 import { t } from '../i18n/i18n.js';
+import { LAYERS, layerRange, layerSeries, pointAt, routePoints } from '../rides/layers.js';
+import { LAYER_COLOURS } from '../rides/route-map.js';
 import { rideName, watchRides } from '../rides/rides.js';
 import { describeError } from './errors.js';
 import { distance, duration, number, speed } from './format.js';
@@ -11,11 +28,13 @@ import {
     actionRow,
     button,
     card,
+    choice,
     confirmAction,
     el,
     icon,
     lineChart,
     openSheet,
+    overlayButton,
     page,
     section,
     showToast,
@@ -25,10 +44,35 @@ import {
 
 /** @typedef {import('../rides/rides.js').Rides} Rides */
 /** @typedef {import('../rides/ride.js').RideSummary} RideSummary */
+/** @typedef {import('../rides/layers.js').Layer} Layer */
+/** @typedef {import('../rides/layers.js').RoutePoint} RoutePoint */
+/** @typedef {import('../rides/route-map.js').RouteView} RouteView */
 /** @typedef {import('../preferences.js').Units} Units */
 
 /** How often the ride being recorded, and whether one is, is read again while the app is on screen. */
 const LIVE_MS = 2000;
+
+/** Feet in a metre, for elevation in miles' units. */
+const FEET_PER_METRE = 3.28084;
+
+/** The icon of each layer, as the bike tab shows speed, the rider and the motor. */
+const LAYER_ICONS = /** @type {const} */ ({ speed: speedometer, rider: person, motor: flash, elevation: trendingUp });
+
+/** The colour of each layer's chart. */
+const LAYER_SERIES = /** @type {const} */ ({
+    speed: 'series-speed',
+    rider: 'series-rider',
+    motor: 'series-motor',
+    elevation: 'series-speed',
+});
+
+/** The text of each layer. */
+const LAYER_TEXTS = /** @type {const} */ ({
+    speed: 'rides.layerSpeed',
+    rider: 'rides.layerRider',
+    motor: 'rides.layerMotor',
+    elevation: 'rides.layerElevation',
+});
 
 /**
  * @param {unknown} error
@@ -39,62 +83,201 @@ async function report(error) {
 }
 
 /**
- * A ride's figures, as tiles.
- * @param {RideSummary} ride
- * @param {Units} units
+ * @typedef {(container: HTMLElement, points: RoutePoint[], layer: Layer) => Promise<RouteView>} ShowRoute draws a
+ *     ride's route on a map in the container, coloured by a layer, and again as it grows
  */
-function figures(ride, units) {
-    const watts = (/** @type {number | null} */ value) =>
-        value === null ? t('common.unknown') : `${number(value, 0)} W`;
-    /** @type {[string, string, string][]} */
-    const rows = [
-        [t('rides.movingTime'), time, duration(ride.movingMs)],
-        [t('rides.totalTime'), time, duration(ride.totalMs)],
-        [
-            t('rides.distance'),
-            map,
-            ride.distanceFrom === null ? t('common.unknown') : distance(ride.distanceKm, units, undefined, 2),
-        ],
-        [
-            t('rides.averageSpeed'),
-            speedometer,
-            ride.averageKmh === null ? t('common.unknown') : speed(ride.averageKmh, units),
-        ],
-        [t('rides.maxSpeed'), speedometer, ride.maxKmh === null ? t('common.unknown') : speed(ride.maxKmh, units)],
-        [t('rides.motorPower'), bicycle, watts(ride.averageMotorWatts)],
-        [t('rides.riderPower'), bicycle, watts(ride.averageRiderWatts)],
-        [t('rides.energy'), bicycle, ride.energyWh === null ? t('common.unknown') : `${number(ride.energyWh, 1)} Wh`],
-    ];
-    return el(
-        'div',
-        { class: 'grid-2 inner' },
-        rows.map(([label, iconName, value]) => {
-            const tile = stat(label, iconName);
-            tile.set(value);
-            return tile.element;
-        })
-    );
+
+/**
+ * A map of the route, drawn once it is in the page and the route has two points; hidden without internet.
+ * @param {ShowRoute | undefined} showRoute
+ * @param {string} size the map's class of height: '' for the usual, 'small' or 'tall'
+ * @param {HTMLElement[]} [overlays] laid over its corners
+ */
+function routeMap(showRoute, size, overlays = []) {
+    const container = el('div', { class: `ride-map ${size}`.trim() });
+    // In the map's place until it has loaded: a map icon over a spinner.
+    const loading = el('div', { class: 'map-loading', role: 'status', 'aria-label': t('rides.mapLoading') }, [
+        icon(map, { class: 'map-loading-icon' }),
+        el('ion-spinner', { name: 'crescent' }),
+    ]);
+    const element = el('div', { class: 'overlay-frame' }, [container, loading, ...overlays]);
+    element.hidden = true;
+    /** @type {RouteView | null} */
+    let drawn = null;
+    let drawing = false;
+    let failed = false;
+    /** @type {RoutePoint | null} */
+    let cursor = null;
+    return {
+        element,
+        /** @param {RoutePoint[]} points @param {Layer} layer */
+        draw(points, layer) {
+            element.hidden = !showRoute || points.length < 2 || failed;
+            if (!showRoute || element.hidden || !element.isConnected) return;
+            if (drawn) {
+                drawn.update(points);
+            } else if (!drawing) {
+                drawing = true;
+                // Without internet, the map stays hidden; the rest of the ride is on the phone.
+                const fail = () => {
+                    failed = true;
+                    element.hidden = true;
+                };
+                showRoute(container, points, layer).then((view) => {
+                    drawn = view;
+                    if (cursor) view.setCursor(cursor);
+                    view.ready.then(() => {
+                        loading.hidden = true;
+                    }, fail);
+                }, fail);
+            }
+        },
+        /** @param {Layer} layer */
+        setLayer(layer) {
+            drawn?.setLayer(layer);
+        },
+        /** @param {RoutePoint | null} point */
+        setCursor(point) {
+            cursor = point;
+            drawn?.setCursor(point);
+        },
+    };
 }
 
 /**
- * @typedef {(container: HTMLElement, route: [number, number][]) => Promise<{ update: (route: [number, number][]) => void }>}
- *     ShowRoute draws a ride's route on a map in the container, and again as it grows
- */
-
-/**
- * A ride as its sheet shows it: its route on a map, why there is none, its figures and its charts. `show` fills them from
- * the ride's file, and again as it grows; the map is drawn once the parts are in the page.
+ * A ride as its sheet shows it: its route on a map coloured by a layer, or why there is no route and its charts
+ * instead; and its figures. The map opens over the whole screen with the chart of its layer.
+ * `show` fills them from the ride's file, and again as it grows; the maps are drawn once they are in the page.
  * @param {() => Units} units
  * @param {ShowRoute} [showRoute] without it, no map is shown
  */
 function rideView(units, showRoute) {
-    const mapContainer = el('div', { class: 'ride-map' });
-    mapContainer.hidden = true;
-    // With no route, the ride says why, rather than leave a gap that looks like a fault.
+    /** @type {Layer} */
+    let layer = LAYERS[0];
+    /** @type {RoutePoint[]} */
+    let points = [];
+    /** @type {import('../rides/ride.js').BikeSample[]} */
+    let samples = [];
+    /** @type {import('../rides/ride.js').Fix[]} */
+    let fixes = [];
+    let startedAt = 0;
+    /** What else shows the ride, as the map over the whole screen, while it is open. */
+    /** @type {Set<() => void>} */
+    const others = new Set();
+    /** The choices of layer and the maps shown, kept alike. */
+    /** @type {Set<{ set: (layer: Layer) => void, title: HTMLElement }>} */
+    const choices = new Set();
+    /** @type {Set<ReturnType<typeof routeMap>>} */
+    const maps = new Set();
+
+    const metric = () => units() !== 'mi';
+    const speedUnit = () => (metric() ? 'km/h' : 'mph');
+    /** A layer's unit, and its values in the rider's units. */
+    /** @param {Layer} shown */
+    const unitOf = (shown) => {
+        if (shown === 'speed') return { unit: speedUnit(), scale: metric() ? 1 : 1 / 1.609344 };
+        if (shown === 'elevation') return { unit: metric() ? 'm' : 'ft', scale: metric() ? 1 : FEET_PER_METRE };
+        return { unit: 'W', scale: 1 };
+    };
+    /** A moment as the time since the start and the time of day. */
+    /** @param {number} at @returns {[string, string]} */
+    const timeText = (at) => [
+        duration(at - startedAt),
+        new Date(at).toLocaleTimeString(globalThis.document?.documentElement.lang || undefined, {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        }),
+    ];
+    /** The name of the layer, with "no data" if the ride has no values for it. */
+    const titleText = () => `${t(LAYER_TEXTS[layer])}${layerRange(points, layer) ? '' : ` · ${t('rides.noLayer')}`}`;
+    /** The label of each map that has one: the name of the layer. */
+    const showTitles = () => {
+        for (const shown of choices) shown.title.textContent = titleText();
+    };
+    /** @param {Layer} next */
+    const chooseLayer = (next) => {
+        layer = next;
+        for (const other of choices) other.set(next);
+        for (const shown of maps) shown.setLayer(next);
+        showTitles();
+        for (const update of others) update();
+    };
+
+    /**
+     * A choice of layer, by icons, kept alike with the others, and the chosen layer's name, as a label for the map.
+     */
+    const layerChoice = () => {
+        const title = el('span', { class: 'map-label' }, ['']);
+        const control = choice({
+            label: t('rides.colourBy'),
+            options: LAYERS.map((value) => ({ value, label: t(LAYER_TEXTS[value]), iconName: LAYER_ICONS[value] })),
+            onChange: async (value) => chooseLayer(value),
+        });
+        const shown = {
+            element: control.element,
+            title,
+            /** @param {Layer} value */
+            set(value) {
+                control.set(value);
+            },
+        };
+        shown.set(layer);
+        choices.add(shown);
+        showTitles();
+        return shown;
+    };
+
+    // The map over the whole screen, with the chart of its layer under it: touching the chart marks on the map where
+    // the rider was then.
+    const openMap = async () => {
+        const control = layerChoice();
+        const shownMap = routeMap(showRoute, 'tall', [control.title]);
+        maps.add(shownMap);
+        const chartCard = card([]);
+        /** @type {Layer | null} */
+        let charted = null;
+        /** @type {ReturnType<typeof lineChart> | null} */
+        let chart = null;
+        const update = () => {
+            shownMap.draw(points, layer);
+            showTitles();
+            if (charted !== layer || !chart) {
+                charted = layer;
+                const { unit } = unitOf(layer);
+                chart = lineChart(t(LAYER_TEXTS[layer]), {
+                    unit,
+                    series: [{ name: t(LAYER_TEXTS[layer]), className: LAYER_SERIES[layer] }],
+                    colours: LAYER_COLOURS,
+                    timeText,
+                    onPick: (at) => shownMap.setCursor(pointAt(points, at)),
+                });
+                chartCard.replaceChildren(chart.element);
+            }
+            const { scale: factor } = unitOf(layer);
+            chart.set([layerSeries(samples, fixes, layer).map(([at, value]) => [at, value * factor])]);
+        };
+        others.add(update);
+        await openSheet(t('rides.map'), [control.element, shownMap.element, chartCard], () => {
+            others.delete(update);
+            choices.delete(control);
+            maps.delete(shownMap);
+        });
+        update();
+    };
+
+    // The route.
+    const mainChoice = layerChoice();
+    const mainMap = routeMap(showRoute, '', [
+        mainChoice.title,
+        overlayButton(expand, t('rides.fullMap'), () => openMap()),
+    ]);
+    maps.add(mainMap);
+    const mapParts = el('div', {}, [mainChoice.element, mainMap.element]);
+    // With no route, the ride says why, rather than leave a gap that looks like a fault, and shows its charts instead.
     const noRoute = el('p', { class: 'ride-state' }, [t('rides.noRoute')]);
-    const figuresCard = card([]);
     const speedChart = lineChart(t('rides.speedChart'), {
-        unit: units() === 'mi' ? 'mph' : 'km/h',
+        unit: speedUnit(),
         series: [{ name: t('rides.speed'), className: 'series-speed' }],
     });
     const powerChart = lineChart(t('rides.powerChart'), {
@@ -106,48 +289,59 @@ function rideView(units, showRoute) {
     });
     const speedCard = card([speedChart.element]);
     const powerCard = card([powerChart.element]);
-    /** @type {Promise<unknown> | null} */
-    let drawing = null;
-    /** @type {{ update: (route: [number, number][]) => void } | null} */
-    let drawn = null;
-    let mapFailed = false;
-    const toUnits = (/** @type {number} */ kmh) => (units() === 'mi' ? kmh / 1.609344 : kmh);
+
+    // The figures, in pairs: the time, the distance and the battery, the speed, the power.
+    const tiles = {
+        moving: stat(t('rides.movingTime'), time),
+        total: stat(t('rides.totalTime'), time),
+        distance: stat(t('rides.distance'), map),
+        energy: stat(t('rides.energy'), batteryHalf),
+        average: stat(t('rides.averageSpeed'), speedometer),
+        top: stat(t('rides.maxSpeed'), speedometer),
+        rider: stat(t('rides.riderPower'), person),
+        motor: stat(t('rides.motorPower'), flash),
+    };
+    const figuresCard = card([
+        el(
+            'div',
+            { class: 'grid-2 inner' },
+            Object.values(tiles).map((tile) => tile.element)
+        ),
+    ]);
 
     return {
-        content: [mapContainer, noRoute, figuresCard, speedCard, powerCard],
+        content: [mapParts, noRoute, speedCard, powerCard, figuresCard],
 
         /** @param {import('../rides/ride.js').RideReader} reader */
         show(reader) {
             const ride = reader.summary();
-            const samples = reader.bikeSamples();
-            const routeFixes = reader.route();
-            figuresCard.replaceChildren(figures(ride, units()));
-            speedChart.set([
-                samples.length > 0
-                    ? samples.map((s) => [s.t, toUnits(s.speedKmh)])
-                    : routeFixes.map((f) => [f.t, toUnits((f.speed ?? 0) * 3.6)]),
-            ]);
-            powerChart.set([samples.map((s) => [s.t, s.motorWatts]), samples.map((s) => [s.t, s.riderWatts])]);
-            speedCard.hidden = samples.length === 0 && routeFixes.length === 0;
-            powerCard.hidden = samples.length === 0;
-            const hasRoute = ride.route.length >= 2;
-            noRoute.hidden = hasRoute;
-            mapContainer.hidden = !showRoute || !hasRoute || mapFailed;
-            if (!showRoute || !hasRoute || mapFailed || !mapContainer.isConnected) return;
-            if (drawn) {
-                drawn.update(ride.route);
-            } else if (!drawing) {
-                // Without internet, the map stays hidden; the rest of the ride is on the phone.
-                drawing = showRoute(mapContainer, ride.route).then(
-                    (map) => {
-                        drawn = map;
-                    },
-                    () => {
-                        mapFailed = true;
-                        mapContainer.hidden = true;
-                    }
-                );
-            }
+            samples = reader.bikeSamples();
+            fixes = reader.route();
+            startedAt = ride.startedAt;
+            points = routePoints(fixes, samples);
+
+            const unknown = t('common.unknown');
+            const watts = (/** @type {number | null} */ value) => (value === null ? unknown : `${number(value, 0)} W`);
+            tiles.moving.set(duration(ride.movingMs));
+            tiles.total.set(duration(ride.totalMs));
+            tiles.distance.set(ride.distanceFrom === null ? unknown : distance(ride.distanceKm, units(), undefined, 2));
+            tiles.energy.set(ride.energyWh === null ? unknown : `${number(ride.energyWh, 1)} Wh`);
+            tiles.average.set(ride.averageKmh === null ? unknown : speed(ride.averageKmh, units()));
+            tiles.top.set(ride.maxKmh === null ? unknown : speed(ride.maxKmh, units()));
+            tiles.rider.set(watts(ride.averageRiderWatts));
+            tiles.motor.set(watts(ride.averageMotorWatts));
+
+            const hasRoute = Boolean(showRoute) && ride.route.length >= 2;
+            noRoute.hidden = ride.route.length >= 2;
+            mapParts.hidden = !hasRoute;
+            const { scale: toUnits } = unitOf('speed');
+            speedChart.set([layerSeries(samples, fixes, 'speed').map(([at, value]) => [at, value * toUnits])]);
+            powerChart.set([layerSeries(samples, fixes, 'motor'), layerSeries(samples, fixes, 'rider')]);
+            speedCard.hidden = hasRoute || (samples.length === 0 && fixes.length === 0);
+            powerCard.hidden = hasRoute || samples.length === 0;
+            mainMap.draw(points, layer);
+            showTitles();
+            for (const update of others) update();
         },
     };
 }
