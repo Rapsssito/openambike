@@ -2,6 +2,12 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+## [2.0.1](https://github.com/Rapsssito/openambike/compare/v2.0.0...v2.0.1) (2026-11-23)
+
+### Bug Fixes
+
+* describe the owner key in Settings in F-Droid's listing, and add its screenshots ([03363dd](https://github.com/Rapsssito/openambike/commit/03363ddad535f561e61fcc54d6d258e347301541))
+
 # [2.0.0](https://github.com/Rapsssito/openambike/compare/v1.1.1...v2.0.0) (2026-11-23)
 
 * feat(app)!: decide auto-lock without the app, and show what it decides in Activity ([b295bbd](https://github.com/Rapsssito/openambike/commit/b295bbdb285dacac62abc21a2b1ea69cd3754a44))

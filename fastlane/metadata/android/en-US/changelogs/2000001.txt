@@ -1,0 +1,3 @@
+Bug Fixes:
+
+- describe the owner key in Settings in F-Droid's listing, and add its screenshots
