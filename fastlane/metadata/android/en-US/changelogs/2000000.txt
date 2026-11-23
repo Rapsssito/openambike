@@ -1,0 +1,8 @@
+- feat(app)!: decide auto-lock without the app, and show what it decides in Activity
+- feat(app)!: show and copy the owner key in Settings, drop the encrypted export and import
+- fix(app)!: use the application ID io.github.rapsssito.openambike, which F-Droid accepts
+
+Bug Fixes:
+
+- let the app connect as it opens, and list the connection's steps in the link card
+More in https://github.com/Rapsssito/openambike/blob/main/CHANGELOG.md
