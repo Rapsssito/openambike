@@ -37,7 +37,13 @@ describe('auto-connect', () => {
             to: 12,
         });
         expect(config.thresholds).toEqual(AUTO_CONNECT_THRESHOLDS);
-        expect(config.thresholds).toMatchObject({ nearDbm: -72, farDbm: -80, farMs: 3_000, parkedMs: 900_000 });
+        expect(config.thresholds).toMatchObject({
+            nearDbm: -72,
+            nearMs: 5_000,
+            farDbm: -76,
+            farMs: 3_000,
+            parkedMs: 900_000,
+        });
         expect(config.unlock).toEqual({ ...config.lock, value: '00' });
     });
 

@@ -36,6 +36,7 @@ export function linkText(status) {
             if (status.error === undefined) return t('home.noneFound');
             return describeError(status.error) ?? t('link.disconnected');
         default:
+            if (status.letGo) return t('link.letGo');
             return status.message ?? t('link.disconnected');
     }
 }
@@ -60,7 +61,7 @@ export function linkCard({ link, native, onOtherKey, onDisconnect, disconnectLab
     const actions = el('div', { class: 'stack' });
 
     const connectButton = button(t('home.connect'));
-    connectButton.addEventListener('click', () => link.connect());
+    connectButton.addEventListener('click', () => link.connect({ rider: true }));
     const searchButton = button(t('home.searchAgain'), { fill: 'clear' });
     searchButton.addEventListener('click', () => link.search());
     const otherKeyButton = button(t('home.otherKey'), { fill: 'clear', color: 'medium' });

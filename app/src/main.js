@@ -139,6 +139,9 @@ function newLink() {
         loadBikeId,
         saveBikeId,
         onConnected,
+        onRiderConnect: async () => {
+            await autoConnect?.riderConnecting();
+        },
     });
     link.onStatus(({ phase }) => {
         if (phase === 'refused') autoConnect?.disable().catch(() => undefined);

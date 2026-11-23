@@ -159,7 +159,6 @@ export function automaticSection({ autoConnect, keyStore, address, onShow }) {
     const activityFold = fold({
         iconName: pulse,
         label: t('activity.title'),
-        detail: t('activity.detail'),
         content: [
             el('p', { class: 'fold-heading' }, [t('activity.now')]),
             nowList,

@@ -105,6 +105,11 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         }
     };
     private volatile boolean appOnScreen;
+    /**
+     * Whether auto-connect let the bike go, the rider having left: the app then connects only when the rider asks, not
+     * by itself, until auto-connect connects again.
+     */
+    private volatile boolean letGo;
     private AutoConnect.Status status = AutoConnect.Status.LOOKING;
     /** The bike's lock as last read or notified on this connection, for the notification; null when not known. */
     private Boolean bikeLocked;
@@ -258,6 +263,11 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             stopSelf();
             return;
         }
+        // The same configuration again, as at each connection of the app: auto-connect goes on, with its pause and history.
+        if (json.equals(savedConfig) && config != null) {
+            ContextCompat.startForegroundService(this, new Intent(this, BikeLinkService.class));
+            return;
+        }
         AutoConnectConfig next = new AutoConnectConfig(json);
         store.save(json);
         savedConfig = json;
@@ -302,11 +312,23 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             .put("signalSettled", preview.signalSettled)
             .put("guardLeftMs", preview.guardLeftMs)
             .put("parkedLeftMs", preview.parkedLeftMs);
-        if (preview.locked != null) result.put("locked", preview.locked);
+        if (preview.lastLocked != null) result.put("locked", preview.lastLocked);
+        if (preview.heardDbm != null) result.put("heardDbm", preview.heardDbm).put("heardAgoMs", preview.heardAgoMs);
+        if (preview.connectInMs != null) result.put("connectInMs", preview.connectInMs);
+        if (preview.leaveInMs != null) result.put("leaveInMs", preview.leaveInMs);
         if (preview.nearDbm != null) result.put("nearDbm", Math.round(preview.nearDbm));
         if (preview.signalDbm != null) result.put("signalDbm", Math.round(preview.signalDbm));
         if (preview.signalNowDbm != null) result.put("signalNowDbm", preview.signalNowDbm);
         if (preview.movedAgoMs != null) result.put("movedAgoMs", preview.movedAgoMs);
+        // The ride being recorded, whether auto-ride started it, and auto-ride's countdowns.
+        JSONObject rideState = new JSONObject().put("active", rideConfig != null);
+        if (rideConfig != null) rideState.put("auto", rideConfig.optBoolean("auto", false));
+        if (autoRide != null) {
+            AutoRide.Preview ridePreview = autoRide.preview(now);
+            if (ridePreview.startInMs != null) rideState.put("startInMs", ridePreview.startInMs);
+            if (ridePreview.stopInMs != null) rideState.put("stopInMs", ridePreview.stopInMs);
+        }
+        result.put("ride", rideState);
         JSONArray history = new JSONArray();
         for (AutoConnect.Entry entry : auto.history()) {
             history.put(
@@ -331,17 +353,14 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         // Kept even before the link exists, as when the app opens: otherwise the service would take it for in the
         // background, and refuse its connections while auto-connect is on.
         appOnScreen = onScreen;
-        if (link == null) return;
-        link.post(() -> {
-            if (auto != null) auto.setForeground(onScreen, now());
-        });
     }
 
-    /** The app is about to connect: with the app on screen, that ends a pause. */
-    void appConnecting() {
+    /** The rider asked the app to connect: that ends a pause, and lets the app connect after auto-connect let go. */
+    void riderConnecting() {
+        letGo = false;
         if (link == null) return;
         link.post(() -> {
-            if (auto != null && appOnScreen) auto.resume(now());
+            if (auto != null) auto.resume(now());
         });
     }
 
@@ -362,9 +381,17 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         });
     }
 
-    /** Whether the app may connect now: always on screen; in the background, only to the link auto-connect holds. */
+    /**
+     * Whether the app may connect now: on screen, unless auto-connect let the bike go and the rider did not ask since; in
+     * the background, only to the link auto-connect holds.
+     */
+    boolean hasLetGo() {
+        return letGo;
+    }
+
     boolean appMayConnect(String address) {
-        return appOnScreen || config == null || link == null || link.isReady(address);
+        if (config == null || link == null || link.isReady(address)) return true;
+        return appOnScreen && !letGo;
     }
 
     // Rides.
@@ -626,7 +653,6 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             autoRide = new AutoRide(autoRideActions, rideSettings);
             if (rideConfig != null) autoRide.rideGoingOn(rideConfig.optBoolean("auto", false), now);
         }
-        auto.setForeground(appOnScreen, now);
         if (link.isReady(config.address) && config.address.equals(authenticated)) auto.linkUp(now);
         auto.start(now);
         link.postDelayed(tick, TICK_MS);
@@ -745,6 +771,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
     /** Auto-connect lets the bike go, the rider having left it: a ride auto-ride started ends. */
     @Override
     public void disconnect() {
+        letGo = true;
         if (autoRide != null) autoRide.letGo();
         link.disconnect(config.address, (value, error) -> {});
     }
@@ -941,6 +968,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (characteristic.equals(config.auth.characteristic)) {
             if (config.accepts(value)) {
                 authenticated = address;
+                letGo = false;
                 if (authenticating) authenticated(address);
                 else if (auto != null) auto.linkUp(now());
             } else if (authenticating) {

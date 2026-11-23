@@ -101,7 +101,7 @@ public class AutoConnectTest {
     public void inTheBackgroundItLooksSlowlyThenFastNearTheBikeThenConnects() {
         auto.start(now);
         assertEquals(List.of("scan slow"), actions.done);
-        hear(-65, 9_000);
+        hear(-65, 4_000);
         assertTrue(actions.did("scan fast"));
         assertFalse(actions.did("connect"));
         hear(-65, 1_500);
@@ -127,12 +127,19 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void withTheAppOnScreenItStandsAside() {
-        auto.setForeground(true, now);
+    public void aConnectionTheAppMadeFromAfarIsNotLetGoUntilTheRiderWasNearAndLeft() {
         auto.start(now);
-        hear(-60, 30_000);
-        assertTrue(actions.done.isEmpty());
-        assertEquals(AutoConnect.State.APP, auto.state());
+        auto.lockState(false);
+        auto.linkUp(now);
+        assertEquals(AutoConnect.State.CONNECTED, auto.state());
+        assertTrue(actions.did("stop scan"));
+        assertEquals(AutoConnect.Event.APP_CONNECTED, auto.history().get(0).event);
+        signal(-90, 60_000);
+        assertFalse(actions.did("lock"));
+        assertFalse(actions.did("disconnect"));
+        signal(-60, 5_000);
+        signal(-90, 5_000);
+        assertTrue(actions.did("lock"));
     }
 
     @Test
@@ -157,6 +164,7 @@ public class AutoConnectTest {
         signal(-90, 5_500);
         assertFalse(actions.did("lock"));
         assertTrue(actions.did("disconnect"));
+        assertEquals(AutoConnect.Event.LEFT_LOCKED_AWAY, auto.history().get(0).event);
     }
 
     @Test
@@ -221,25 +229,6 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void withTheAppOnScreenThePreviewShowsTheTimersAndNothingIsDone() {
-        auto.setForeground(true, now);
-        auto.start(now);
-        auto.linkUp(now);
-        auto.lockState(false);
-        auto.moved(now);
-        signal(-90, 10_000);
-        AutoConnect.Preview preview = auto.preview(now);
-        assertEquals(AutoConnect.State.APP, preview.state);
-        assertEquals(-90, preview.signalDbm, 0.01);
-        assertEquals(Integer.valueOf(-90), preview.signalNowDbm);
-        assertTrue(preview.signalSettled);
-        assertEquals(settings.rideGuardMs - 10_000, preview.guardLeftMs);
-        assertEquals(settings.parkedMs - 10_000, preview.parkedLeftMs);
-        assertFalse(actions.did("lock"));
-        assertTrue(auto.history().isEmpty());
-    }
-
-    @Test
     public void oneDeepDipInThreeDoesNotLockForTheMedianDecides() {
         connectedInBackground();
         auto.lockState(false);
@@ -255,10 +244,10 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void aWallForAMomentDoesNotLock() {
+    public void aSignalJustAboveTheFarThresholdDoesNotLock() {
         connectedInBackground();
         signal(-60, 31_000);
-        signal(-80, 60_000);
+        signal(settings.farDbm + 2, 60_000);
         assertFalse(actions.did("lock"));
         assertFalse(actions.did("disconnect"));
     }
@@ -336,16 +325,24 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void leavingTheAppTakesOverItsConnection() {
-        auto.setForeground(true, now);
-        auto.start(now);
+    public void aPauseForStandingNearEndsOnceTheBikeMovesOnAConnectionOfTheApp() {
+        connectedInBackground();
+        signal(-60, 15 * 60_000 + 1_000);
+        auto.lockDone(true, now);
+        auto.linkDown(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
         auto.linkUp(now);
-        auto.setForeground(false, now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
+        auto.moved(now);
         assertEquals(AutoConnect.State.CONNECTED, auto.state());
-        assertEquals(AutoConnect.Event.TOOK_OVER, auto.history().get(0).event);
-        auto.lockState(false);
-        signal(-90, 31_000);
-        assertTrue(actions.did("lock"));
+    }
+
+    @Test
+    public void aPauseOfTheRiderDoesNotEndWhenTheBikeMoves() {
+        connectedInBackground();
+        auto.userDisconnected(now);
+        auto.moved(now);
+        assertEquals(AutoConnect.State.PAUSED, auto.state());
     }
 
     @Test
@@ -405,22 +402,57 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void theAppConnectingOrBeingLeftNeverUnlocks() {
+    public void theAppConnectingDoesNotUnlockAtOnce() {
         settings.autoUnlock = true;
-        auto.setForeground(true, now);
         auto.start(now);
         auto.lockState(true);
         auto.linkUp(now);
-        auto.setForeground(false, now);
         assertEquals(AutoConnect.State.CONNECTED, auto.state());
         assertFalse(actions.did("unlock"));
     }
 
+
     @Test
-    public void openingTheAppStopsTheScan() {
+    public void thePreviewCountsDownToTheConnectionAndToTheLockAndKeepsTheLastLock() {
         auto.start(now);
-        auto.setForeground(true, now);
-        assertTrue(actions.did("stop scan"));
-        assertEquals(AutoConnect.State.APP, auto.state());
+        hear(-60, 2_000);
+        AutoConnect.Preview near = auto.preview(now);
+        assertEquals(Integer.valueOf(-60), near.heardDbm);
+        assertTrue(near.connectInMs > 0 && near.connectInMs <= settings.nearMs);
+        hear(-60, 9_000);
+        auto.lockState(false);
+        auto.linkUp(now);
+        signal(-60, 31_000);
+        signal(-90, 1_000);
+        AutoConnect.Preview leaving = auto.preview(now);
+        assertEquals(Long.valueOf(settings.farMs - 1_000), leaving.leaveInMs);
+        auto.lockState(true);
+        auto.linkDown(now);
+        assertEquals(Boolean.TRUE, auto.preview(now).lastLocked);
+    }
+
+    @Test
+    public void aConnectionTheAppMadeUnlocksOnceTheRiderIsNearAndNotBefore() {
+        settings.autoUnlock = true;
+        auto.start(now);
+        auto.lockState(true);
+        auto.linkUp(now);
+        signal(-85, 10_000);
+        assertFalse(actions.did("unlock"));
+        signal(-54, 5_000);
+        assertTrue(actions.did("unlock"));
+        assertEquals(AutoConnect.Event.UNLOCKED_ON_ARRIVAL, auto.history().get(0).event);
+    }
+
+    @Test
+    public void aLockPressedByHandHoldsAgainstTheUnlockOfAConnectionTheAppMade() {
+        settings.autoUnlock = true;
+        auto.setLockHeld(true);
+        auto.start(now);
+        auto.lockState(true);
+        auto.linkUp(now);
+        signal(-54, 6_000);
+        assertFalse(actions.did("unlock"));
+        assertEquals(AutoConnect.Event.UNLOCK_HELD, auto.history().get(0).event);
     }
 }

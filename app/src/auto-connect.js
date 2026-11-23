@@ -9,13 +9,13 @@ import { rideConfig } from './rides/rides.js';
 /** @typedef {import('./ble/native-client.js').BikeLinkPlugin} BikeLinkPlugin */
 
 /**
- * What auto-connect does, as the service says it: where its timers stand, also while the app is on screen and holds
- * the connection, and its history, newest first.
+ * What auto-connect does, as the service says it: where its timers stand, the ride being recorded, and its history,
+ * newest first.
  * @typedef {object} Activity
  * @property {boolean} running
- * @property {'OFF' | 'APP' | 'IDLE' | 'NEAR' | 'CONNECTING' | 'CONNECTED' | 'LEAVING' | 'PAUSED'} [state]
+ * @property {'OFF' | 'IDLE' | 'NEAR' | 'CONNECTING' | 'CONNECTED' | 'LEAVING' | 'PAUSED'} [state]
  * @property {boolean} [connected] whether the bike is connected and accepted the key, whoever connected it
- * @property {boolean} [locked] the bike's lock, when known
+ * @property {boolean} [locked] the bike's lock as last known, also after the connection ended
  * @property {boolean} [lockHeld] whether the rider's own lock holds against auto-unlock
  * @property {number} [nearDbm] near the bike, before connecting: the advertising's median
  * @property {number} [nearForMs] and for how long it has been heard near
@@ -25,6 +25,13 @@ import { rideConfig } from './rides/rides.js';
  * @property {number} [movedAgoMs] since the bike last reported movement, if it has
  * @property {number} [guardLeftMs] how long the ride guard still holds a lock back
  * @property {number} [parkedLeftMs] how long until a bike standing still near is let go
+ * @property {number} [heardDbm] the bike's advertising as last heard
+ * @property {number} [heardAgoMs] and how long ago
+ * @property {number} [connectInMs] near the bike, its signal strong enough: how long until it connects
+ * @property {number} [leaveInMs] connected, the rider leaving: how long until it locks or lets go
+ * @property {{ active: boolean, auto?: boolean, startInMs?: number, stopInMs?: number }} [ride] whether a ride is
+ *     recorded and auto-ride started it; how long until auto-ride starts one while the bike moves, or stops its own while
+ *     the bike stands
  * @property {{ at: number, event: string, value: number }[]} [history] `at` in milliseconds since 1970
  */
 
@@ -39,14 +46,18 @@ import { rideConfig } from './rides/rides.js';
  * docs/roadmap.md, "Auto-connect, auto-lock and rides").
  */
 export const AUTO_CONNECT_THRESHOLDS = Object.freeze({
-    /** Connects once the median of the bike's advertising over `nearMs` is above this: about 1.5 m, phone in a pocket. */
-    nearDbm: -72,
-    nearMs: 10_000,
     /**
-     * Lets go once the median of the connection's signal over `farMs` is below this: about 4 to 5 m, early enough to lock
-     * before the link drops at walking pace with the rider's body between phone and bike; a wall (-80 dBm) does not.
+     * Connects once the median of the bike's advertising over `nearMs` is above this: about 1.5 m, phone in a pocket; the
+     * time short, so that the bike unlocks soon after the rider reaches it.
      */
-    farDbm: -80,
+    nearDbm: -72,
+    nearMs: 5_000,
+    /**
+     * Lets go once the median of the connection's signal over `farMs` is below this, after it was above it: about 2.5 to
+     * 3 m, so that the lock goes out well before the link drops; a closed door or a wall (-80 dBm) between phone and bike
+     * also counts as away.
+     */
+    farDbm: -76,
     farMs: 3_000,
     /** Lets go, and pauses, once the bike has not moved for this long near the phone. */
     parkedMs: 15 * 60_000,
@@ -208,6 +219,10 @@ export function createAutoConnect(plugin) {
         /** The rider disconnected: auto-connect waits until they connect again. */
         async pause() {
             await plugin.pauseAutoConnect();
+        },
+        /** The rider asked to connect: a pause ends, and the app connects even after auto-connect let the bike go. */
+        async riderConnecting() {
+            await plugin.riderConnecting();
         },
         /**
          * The connection's signal strength, in dBm.

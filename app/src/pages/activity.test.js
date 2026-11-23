@@ -1,5 +1,8 @@
+import { AUTO_CONNECT_THRESHOLDS } from '../auto-connect.js';
 import { setLanguage, t } from '../i18n/i18n.js';
 import { describeActivity } from './activity.js';
+
+const { farDbm: FAR, nearDbm: NEAR } = AUTO_CONNECT_THRESHOLDS;
 
 const LOCK = { autoLock: true, autoUnlock: false, autoRide: false };
 
@@ -10,70 +13,55 @@ describe("auto-connect's activity", () => {
         setLanguage('en');
     });
 
-    test('with the app open and the bike connected, the timers show what auto-lock would do', () => {
+    test('connected and unlocked: the last signal, the movement, and the signal that locks', () => {
         const { now } = describeActivity(
-            {
-                running: true,
-                state: 'APP',
-                connected: true,
-                locked: false,
-                signalDbm: -84,
-                signalNowDbm: -86,
-                signalSettled: true,
-                movedAgoMs: 12_400,
-                guardLeftMs: 17_600,
-                parkedLeftMs: 14 * 60_000 + 52_000,
-            },
+            { running: true, state: 'CONNECTED', connected: true, locked: false, signalNowDbm: -70, movedAgoMs: 2_000 },
             LOCK
         );
-        expect(now.map((line) => line.value)).toEqual([
-            t('activity.stateApp'),
-            t('activity.signalValue', { now: '-86', median: '-84' }),
-            t('activity.movedWaiting', { ago: '12', left: '18' }),
-            t('activity.parkedLeft', { time: '14:52' }),
-            t('activity.unlocked'),
+        expect(now).toEqual([
+            { label: t('activity.signal'), value: '-70 dBm' },
+            { label: t('activity.moving'), value: t('activity.movingYes') },
+            { label: t('activity.lock'), value: t('activity.unlockedTo', { dbm: String(FAR) }) },
         ]);
     });
 
-    test('a connection just made, with no movement, can lock at once; the signal shows once measured', () => {
-        const { now } = describeActivity(
-            {
-                running: true,
-                state: 'CONNECTED',
-                connected: true,
-                signalDbm: -70,
-                signalNowDbm: -70,
-                signalSettled: false,
-                guardLeftMs: 0,
-            },
+    test('leaving, the lock counts down; near and locked, the unlock counts down with auto-unlock', () => {
+        const leaving = describeActivity(
+            { running: true, state: 'CONNECTED', connected: true, locked: false, movedAgoMs: 60_000, leaveInMs: 1_200 },
             LOCK
         );
-        expect(now[1].value).toBe(t('activity.signalNow', { now: '-70' }));
-        expect(now[2].value).toBe(t('activity.neverMoved'));
-        expect(now[4].value).toBe(t('activity.lockUnknown'));
+        expect(leaving.now[1].value).toBe(t('activity.movingNo'));
+        expect(leaving.now[2].value).toBe(t('activity.lockingIn', { time: '2 s' }));
+        /** @type {import('../auto-connect.js').Activity} */
+        const near = { running: true, state: 'NEAR', locked: true, heardDbm: -66, heardAgoMs: 400, connectInMs: 3_100 };
+        const unlocking = describeActivity(near, { ...LOCK, autoUnlock: true });
+        expect(unlocking.now.map((line) => line.value)).toEqual([
+            '-66 dBm',
+            t('activity.unknown'),
+            t('activity.unlockingIn', { time: '4 s' }),
+        ]);
+        expect(describeActivity(near, LOCK).now[2].value).toBe(t('activity.locked'));
+        const held = describeActivity({ ...near, lockHeld: true }, { ...LOCK, autoUnlock: true });
+        expect(held.now[2].value).toBe(t('activity.lockedByYou'));
+        const far = describeActivity(
+            { ...near, connectInMs: undefined, heardAgoMs: 20_000 },
+            { ...LOCK, autoUnlock: true }
+        );
+        expect(far.now[0].value).toBe(t('activity.signalOut'));
+        expect(far.now[2].value).toBe(t('activity.lockedTo', { dbm: String(NEAR) }));
     });
 
-    test('near the bike, it gives the signal; with auto-lock off, no movement line', () => {
-        const near = describeActivity({ running: true, state: 'NEAR', nearDbm: -66, nearForMs: 4_200 }, LOCK);
-        expect(near.now).toEqual([{ label: t('activity.state'), value: t('activity.stateNear', { dbm: '-66' }) }]);
-        const ride = describeActivity(
-            {
-                running: true,
-                state: 'CONNECTED',
-                connected: true,
-                signalDbm: -60,
-                signalNowDbm: -60,
-                signalSettled: true,
-            },
-            { autoLock: false, autoUnlock: false, autoRide: true }
+    test('the ride: inactive, starting, active, and stopping', () => {
+        const ride = { autoLock: false, autoUnlock: false, autoRide: true };
+        /** @param {import('../auto-connect.js').Activity['ride']} state */
+        const line = (state) =>
+            describeActivity({ running: true, state: 'CONNECTED', connected: true, ride: state }, ride).now[2].value;
+        expect(line({ active: false })).toBe(t('activity.rideInactive'));
+        expect(line({ active: false, startInMs: 11_000 })).toBe(t('activity.rideStartingIn', { time: '11 s' }));
+        expect(line({ active: true, auto: false })).toBe(t('activity.rideActive'));
+        expect(line({ active: true, auto: true, stopInMs: 14 * 60_000 + 54_000 })).toBe(
+            t('activity.rideStoppingIn', { time: '14:54' })
         );
-        expect(ride.now.map((line) => line.label)).toEqual([
-            t('activity.state'),
-            t('activity.signal'),
-            t('activity.parked'),
-            t('activity.lock'),
-        ]);
-        expect(ride.now[1].value).toBe(t('activity.signalValue', { now: '-60', median: '-60' }));
     });
 
     test('the history says each event with its time and value', () => {

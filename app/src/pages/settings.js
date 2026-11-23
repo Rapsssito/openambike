@@ -8,6 +8,7 @@ import { automaticSection } from './automatic.js';
 import { keyRow } from './key-row.js';
 import {
     actionRow,
+    card,
     choice,
     confirmAction,
     disclosure,
@@ -112,7 +113,7 @@ export function settingsPage({
     const content = [
         section(t('more.settings'), [unitsRow], { iconName: options }),
         automatic.element,
-        section(t('more.key'), [keyRow(keyStore), forgetRow], { iconName: key, footer: t('more.keyHelp') }),
+        section(t('more.key'), [keyRow(keyStore)], { iconName: key, footer: t('more.keyHelp') }),
         section(
             t('more.about'),
             [
@@ -126,6 +127,8 @@ export function settingsPage({
             ],
             { iconName: informationCircle }
         ),
+        // On its own at the very end, away from showing and copying the key.
+        el('section', { class: 'section' }, [card([forgetRow])]),
         el('p', { class: 'disclaimer' }, [t('app.disclaimer')]),
     ];
     const element = page(t('more.title'), content, status);

@@ -13,8 +13,17 @@ import { createSession, emptyState, InterruptedError } from './session.js';
 /** @typedef {import('./session.js').BikeState} BikeState */
 
 /**
+ * The native service's answer to a connection the app made by itself after auto-connect let the bike go, the rider having
+ * left it: the app waits for auto-connect to connect again, or for the rider to ask.
+ */
+export const LET_GO = 'Let go by auto-connect.';
+
+/** @param {unknown} error */
+const isLetGo = (error) => error instanceof Error && error.message === LET_GO;
+
+/**
  * Where the link stands: `idle` waits for the rider to connect, as after "Disconnect" or in a browser, which needs a
- * tap to open its chooser; `connecting` goes through its steps (0 connect, 1 check the key, 2 read the bike);
+ * tap to open its chooser, or, with `letGo`, after auto-connect let the bike go, until it connects again; `connecting` goes through its steps (0 connect, 1 check the key, 2 read the bike);
  * `reconnecting` after the link dropped, by itself; `searching` lists the bikes nearby (Android); `failed` with the
  * error; `refused` once the bike did not accept the saved key.
  * @typedef {object} LinkStatus
@@ -22,6 +31,7 @@ import { createSession, emptyState, InterruptedError } from './session.js';
  * @property {number} [step] while connecting
  * @property {unknown} [error] why it failed
  * @property {string} [message] why it is idle, in the rider's words
+ * @property {boolean} [letGo] idle because auto-connect let the bike go
  * @property {FoundBike[]} [found] the bikes found by the search; with `failed`, none was found
  * @property {boolean} [done] while searching, whether the search has ended
  */
@@ -100,9 +110,20 @@ export function createBikeView() {
  * @param {(id: string | null) => void} options.saveBikeId
  * @param {(bike: Bike, key: string) => void} [options.onConnected] called on each connection the rider or the app asked
  *     for, not on the reconnections after a drop
+ * @param {() => Promise<void>} [options.onRiderConnect] before a connection the rider asked for: auto-connect lets the
+ *     app connect even after it let the bike go, and a pause ends
  * @param {number[]} [options.delays] between attempts to reconnect after a drop
  */
-export function createBikeLink({ client, native, loadKey, loadBikeId, saveBikeId, onConnected, delays }) {
+export function createBikeLink({
+    client,
+    native,
+    loadKey,
+    loadBikeId,
+    saveBikeId,
+    onConnected,
+    onRiderConnect,
+    delays,
+}) {
     const view = createBikeView();
     /** @type {LinkStatus} */
     let status = { phase: 'idle' };
@@ -156,13 +177,18 @@ export function createBikeLink({ client, native, loadKey, loadBikeId, saveBikeId
                 await drop();
                 set({ phase: 'refused' });
             },
+            // Auto-connect let the bike go: the attempts go on, quietly, and join its link once it connects again.
+            onAttemptFailed: (error) => {
+                if (current?.session !== session || !isLetGo(error) || status.letGo) return;
+                set({ phase: 'idle', letGo: true });
+            },
         });
         current = { bike, session, keep };
         // A drop shows as reconnecting, until the session starts again.
         session.onChange((state) => {
             if (current?.session !== session) return;
             const phase = state.connected ? 'connected' : 'reconnecting';
-            if (status.phase !== phase) set({ phase });
+            if (status.phase !== phase && !(phase === 'reconnecting' && status.letGo)) set({ phase });
         });
         view.attach(session);
         set({ phase: 'connected' });
@@ -197,6 +223,7 @@ export function createBikeLink({ client, native, loadKey, loadBikeId, saveBikeId
         } catch (error) {
             if (bike && current?.bike !== bike) await bike.disconnect().catch(() => undefined);
             if (mine !== attempt) return;
+            if (isLetGo(error)) return set({ phase: 'idle', letGo: true });
             set(error instanceof AuthenticationError ? { phase: 'refused' } : { phase: 'failed', step, error });
         }
     }
@@ -220,8 +247,12 @@ export function createBikeLink({ client, native, loadKey, loadBikeId, saveBikeId
 
         adopt,
 
-        /** Connects to the bike connected last, or, on Android with none known, searches for one. */
-        connect() {
+        /**
+         * Connects to the bike connected last, or, on Android with none known, searches for one.
+         * @param {{ rider?: boolean }} [options] `rider`, asked for by the rider, not by the app itself
+         */
+        async connect({ rider = false } = {}) {
+            if (rider && onRiderConnect) await onRiderConnect().catch(() => undefined);
             const known = native ? loadBikeId() : null;
             if (!native) return run(() => chooseBike(client, { native }));
             if (known) return run(() => bikeById(client, known));
@@ -258,7 +289,8 @@ export function createBikeLink({ client, native, loadKey, loadBikeId, saveBikeId
         },
 
         /** @param {FoundBike} found a bike of the search, which is connected to from now on */
-        choose(found) {
+        async choose(found) {
+            if (onRiderConnect) await onRiderConnect().catch(() => undefined);
             return run(() => bikeById(client, found.deviceId));
         },
 

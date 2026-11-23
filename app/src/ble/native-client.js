@@ -29,6 +29,8 @@
  *     automatic options a backup brought back, without the key, while auto-connect has no settings on this phone
  * @property {(options: { config?: string }) => Promise<void>} setAutoConnect turns it off without `config`
  * @property {() => Promise<void>} pauseAutoConnect
+ * @property {() => Promise<void>} riderConnecting the rider asked to connect: a pause of auto-connect ends, and the app
+ *     may connect after auto-connect let the bike go
  * @property {() => Promise<{ activity: string }>} getAutoConnectActivity where auto-connect's timers stand and its
  *     history, as JSON text
  * @property {(options: { config: string }) => Promise<{ id: number }>} startRide

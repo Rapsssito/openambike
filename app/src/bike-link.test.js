@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-import { createBikeLink } from './bike-link.js';
+import { createBikeLink, LET_GO } from './bike-link.js';
 import { InterruptedError } from './session.js';
 import { DEVICE, fakeClient, OFFICIAL_317_READS } from './test-support/fake-client.js';
 
@@ -11,6 +11,7 @@ function link({ known = DEVICE, key = KEY, ...options } = {}) {
     const fake = fakeClient({ reads: OFFICIAL_317_READS, ...options });
     const saveBikeId = jest.fn();
     const onConnected = jest.fn();
+    const onRiderConnect = jest.fn(async () => undefined);
     const bikeLink = createBikeLink({
         client: fake.client,
         native: true,
@@ -18,6 +19,7 @@ function link({ known = DEVICE, key = KEY, ...options } = {}) {
         loadBikeId: () => known,
         saveBikeId,
         onConnected,
+        onRiderConnect,
         delays: [10],
     });
     /** @type {string[]} */
@@ -25,7 +27,7 @@ function link({ known = DEVICE, key = KEY, ...options } = {}) {
     bikeLink.onStatus(({ phase }) => {
         if (phases.at(-1) !== phase) phases.push(phase);
     });
-    return { fake, bikeLink, saveBikeId, onConnected, phases };
+    return { fake, bikeLink, saveBikeId, onConnected, onRiderConnect, phases };
 }
 
 describe('the link to the bike', () => {
@@ -96,6 +98,38 @@ describe('the link to the bike', () => {
             await bikeLink.choose(found);
             expect(bikeLink.status.phase).toBe('connected');
             expect(saveBikeId).toHaveBeenCalledWith(DEVICE);
+            await bikeLink.disconnect();
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    test('after auto-connect let the bike go, the app waits, and connects when the rider asks', async () => {
+        const { fake, bikeLink, onRiderConnect } = link();
+        fake.client.connect.mockRejectedValueOnce(new Error(LET_GO));
+        await bikeLink.connect();
+        expect(bikeLink.status).toEqual({ phase: 'idle', letGo: true });
+        expect(onRiderConnect).not.toHaveBeenCalled();
+        await bikeLink.connect({ rider: true });
+        expect(onRiderConnect).toHaveBeenCalled();
+        expect(bikeLink.status.phase).toBe('connected');
+        await bikeLink.disconnect();
+    });
+
+    test('a dropped link that auto-connect let go says so, and joins it once it connects again', async () => {
+        jest.useFakeTimers();
+        try {
+            const { fake, bikeLink } = link();
+            await bikeLink.connect();
+            /** @type {(id: string) => void} */
+            const drop = fake.client.connect.mock.calls[0][1] ?? (() => undefined);
+            fake.client.connect.mockRejectedValueOnce(new Error(LET_GO));
+            drop(DEVICE);
+            await jest.advanceTimersByTimeAsync(10);
+            expect(bikeLink.status).toEqual({ phase: 'idle', letGo: true });
+            expect(bikeLink.view.state.range).toBe(64);
+            await jest.advanceTimersByTimeAsync(10);
+            expect(bikeLink.status.phase).toBe('connected');
             await bikeLink.disconnect();
         } finally {
             jest.useRealTimers();

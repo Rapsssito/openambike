@@ -39,6 +39,15 @@ final class AutoRide {
     private boolean armed = true;
     private long lastMoved = Long.MIN_VALUE / 2;
 
+    /** Where auto-ride stands, for the app to show. */
+    static final class Preview {
+        boolean riding;
+        /** Not riding, the bike moving: how long until a ride starts; null otherwise. */
+        Long startInMs;
+        /** Riding a ride it started, the bike standing: how long until it stops; null otherwise. */
+        Long stopInMs;
+    }
+
     AutoRide(Actions actions, Settings settings) {
         this.actions = actions;
         this.settings = settings;
@@ -97,6 +106,25 @@ final class AutoRide {
         started = false;
         armed = false;
         moves.clear();
+    }
+
+    Preview preview(long now) {
+        Preview preview = new Preview();
+        preview.riding = riding;
+        if (riding && started && now - lastMoved >= settings.gapMs) {
+            preview.stopInMs = Math.max(0, settings.parkedMs - (now - lastMoved));
+        }
+        if (!riding && armed && !moves.isEmpty() && now - moves.peekLast() <= settings.gapMs) {
+            long moving = 0;
+            Long previous = null;
+            for (long at : moves) {
+                if (at < now - settings.windowMs) continue;
+                if (previous != null && at - previous <= settings.gapMs) moving += at - previous;
+                previous = at;
+            }
+            preview.startInMs = Math.max(0, settings.movingMs - moving);
+        }
+        return preview;
     }
 
     /** Called about twice a second while it runs. */

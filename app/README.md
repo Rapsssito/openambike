@@ -70,13 +70,25 @@ On Android, the Rides tab records a ride from "Start ride" to "Stop ride": its t
 On Android, under Settings, "Automatic" (a browser shows them greyed out, since only the Android app keeps working with the app closed). Auto-unlock appears once auto-lock is on. Settings works with the bike away too, so that you can turn them off without connecting:
 
 - **Auto-lock** connects to your bike by itself when you are next to it, even with the app closed, and locks it when you walk away from it. It never locks it while it moves, and never unlocks it. If the connection drops before it could lock, a notification says so: check the bike.
-- **Auto-unlock**, with auto-lock on, unlocks your bike when the app connects to it by itself because you came next to it. It does so whenever your phone comes within about 1.5 m, even if you don't mean to ride, as with the bike parked beside your home; it locks again when you walk away. The app asks you to confirm before turning it on. If you lock the bike in the app yourself, it stays locked until you unlock it in the app.
+- **Auto-unlock**, with auto-lock on, unlocks your bike when you come next to it, whether the app connected by itself or you opened it first. It does so whenever your phone comes within about 1.5 m, even if you don't mean to ride, as with the bike parked beside your home; it locks again when you walk away. The app asks you to confirm before turning it on. If you lock the bike in the app yourself, it stays locked until you unlock it in the app.
 - **Auto-ride** connects to your bike by itself when you are next to it, even with the app closed, and starts recording a ride once the bike has moved for 20 seconds, even with the app closed, and stops it when you walk away or after 15 minutes standing; the minutes standing are not part of the ride. A ride you start yourself, you stop yourself. Android asks whether the app may use your location "all the time", which gives the rides it starts with the app closed their route; without it, they have the bike's figures and no map, and Settings says so under auto-ride, with a button to allow it.
 - While auto-lock or auto-ride is on, the app connects to your bike by itself when you are next to it and disconnects when you walk away, which we call auto-connect. Android needs it to show a notification, which stays small and silent at the bottom of your notifications; Android asks once whether the app may show notifications.
-- "Activity", under the options, opens to show what auto-lock is doing and why: the signal, how long since the bike moved, when it would lock, and the last things it did, with their times.
-- If the bike stands next to you for 15 minutes, as in a garage beside your home, auto-connect locks it (with auto-lock on), disconnects and pauses, so that the bike can sleep. It turns back on by itself about a minute after you leave, or when you open the app. Disconnecting in the app (tap the connection status at the top) pauses it too, until you connect again: while auto-lock or auto-ride is on, the button says "Disconnect and pause auto-lock and auto-ride".
+- It works the same with the app open or closed. After it lets the bike go as you walk away, the app waits for you to come back rather than connect again; tap "Connect" to connect anyway.
+- "Activity", under the options, shows the signal, whether the bike is moving, the lock and the ride, with a countdown when one of them is about to change, and the last things they did, with their times.
+- If the bike stands next to you for 15 minutes, as in a garage beside your home, auto-connect locks it (with auto-lock on), disconnects and pauses, so that the bike can sleep. It turns back on by itself about a minute after you leave, when you ride the bike again, or when you tap "Connect". Disconnecting in the app (tap the connection status at the top) pauses it too, until you tap "Connect": while auto-lock or auto-ride is on, the button says "Disconnect and pause auto-lock and auto-ride".
 
 Tap (i) beside each to read what it does.
+
+How they decide, with the signal as your phone hears it (other phones may hear it stronger or weaker):
+
+| What | When | While the bike moves |
+| --- | --- | --- |
+| Connect | The bike's signal stays above −72 dBm (about 1.5 m, phone in a pocket) for 5 seconds | Same |
+| Auto-unlock | Right after connecting because you came near, or once the signal is that strong on a connection you made by opening the app, if the bike is locked; never while a lock you pressed in the app holds | Same |
+| Auto-lock | The signal falls below −76 dBm (about 2.5 to 3 m, or a closed door or wall between you) for 3 seconds, after it was stronger; it locks, then disconnects | Never locks while the bike moved in the last 30 seconds: it waits until the bike has stood still that long |
+| Standing still | After 15 minutes with the bike standing, it locks (with auto-lock on), disconnects and pauses; it turns back on a minute after you leave, when you ride, or when you tap "Connect" | The 15 minutes start again |
+| Auto-ride starts | Once the bike has moved for 20 seconds within 30 | — |
+| Auto-ride stops | After 15 minutes with neither the bike nor the GPS moving, or when auto-connect lets the bike go | Keeps recording |
 
 ## When something goes wrong
 

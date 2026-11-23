@@ -82,7 +82,7 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
         context.bindService(new Intent(context, BikeLinkService.class), connection, Context.BIND_AUTO_CREATE);
     }
 
-    // The app's screen on or off: auto-connect stands aside while it is on.
+    // The app's screen on or off: in the background, the app only joins the link auto-connect holds.
 
     @Override
     protected void handleOnResume() {
@@ -229,12 +229,12 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
             return;
         }
         withLink(call, (link) -> {
-            // In the background with auto-connect on, the app only joins the link auto-connect holds.
+            // In the background with auto-connect on, the app only joins the link auto-connect holds; after auto-connect let
+            // the bike go, it waits for the rider to ask (src/bike-link.js knows this answer).
             if (!service.appMayConnect(address)) {
-                call.reject("Not connected.");
+                call.reject(service.hasLetGo() ? "Let go by auto-connect." : "Not connected.");
                 return;
             }
-            service.appConnecting();
             link.connect(address, answer(call));
         });
     }
@@ -246,7 +246,15 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
             call.reject("deviceId required.");
             return;
         }
-        withLink(call, (link) -> link.disconnect(address, answer(call)));
+        withLink(call, (link) -> {
+            // A link the app may not connect is not the app's to end: as when auto-connect is still connecting, and the
+            // app tidies up after an attempt the service refused, which would otherwise drop auto-connect's connection.
+            if (!service.appMayConnect(address)) {
+                call.resolve();
+                return;
+            }
+            link.disconnect(address, answer(call));
+        });
     }
 
     @PluginMethod
@@ -323,6 +331,15 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
             } catch (Exception error) {
                 call.reject("Auto-connect could not be turned on: " + error.getMessage());
             }
+        });
+    }
+
+    /** The rider asked to connect: a pause of auto-connect ends, and the app may connect after it let the bike go. */
+    @PluginMethod
+    public void riderConnecting(PluginCall call) {
+        withLink(call, (link) -> {
+            service.riderConnecting();
+            call.resolve();
         });
     }
 

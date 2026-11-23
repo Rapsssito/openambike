@@ -12,10 +12,11 @@ export const RECONNECT_DELAYS_MS = [1000, 2000, 5000];
  * @param {import('./session.js').Session} options.session started
  * @param {string} options.key the owner key the bike accepted
  * @param {(error: unknown) => void} options.onGiveUp called if the bike refuses the key on reconnecting
+ * @param {(error: unknown) => void} [options.onAttemptFailed] called on each attempt that failed, before the next
  * @param {number[]} [options.delays]
  * @returns {{ stop: () => void }} stops reconnecting, before a disconnection that the app asks for
  */
-export function keepConnected({ bike, session, key, onGiveUp, delays = RECONNECT_DELAYS_MS }) {
+export function keepConnected({ bike, session, key, onGiveUp, onAttemptFailed, delays = RECONNECT_DELAYS_MS }) {
     let stopped = false;
     let reconnecting = false;
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -48,6 +49,7 @@ export function keepConnected({ bike, session, key, onGiveUp, delays = RECONNECT
                     onGiveUp(error);
                     break;
                 }
+                if (onAttemptFailed) onAttemptFailed(error);
                 await bike.disconnect().catch(() => undefined);
             }
         }

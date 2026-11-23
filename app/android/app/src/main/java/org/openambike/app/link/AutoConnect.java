@@ -9,9 +9,9 @@ import java.util.List;
  * when to connect, when to lock, and when to let go (docs/roadmap.md, "Auto-connect, auto-lock and rides"). It is told
  * what happens, with the time, and answers through {@link Actions}; it is called on one thread only.
  *
- * <p>With the app on screen, it stands aside and the app connects as it always does. In the background, it connects
- * once the median of the bike's signal has been above the near threshold for a while, and once connected, lets go when
- * the median of the connection's signal falls below the far threshold, or when the bike has not moved for long. The
+ * <p>Whether the app is on screen or not, it connects once the median of the bike's signal has been above the near
+ * threshold for a while, and once connected, whoever connected, lets go when the median of the connection's signal falls
+ * below the far threshold after it was above it, the rider having been near, or when the bike has not moved for long. The
  * median, so that one deep dip, as the rider's body blocks the phone, or one strong reading, does not decide. It locks
  * first if auto-lock is on, never while the bike moved in the last moments. With auto-unlock on, a connection it made because
  * the phone came near unlocks the bike; nothing else does (docs/safety.md, "What the project never does"), and not
@@ -56,16 +56,16 @@ final class AutoConnect {
     enum Alert {
         /** The connection dropped while the bike was not known to be locked. */
         MAY_BE_UNLOCKED,
-        /** The bike stood still near the phone for long: auto-connect paused until the app is opened. */
+        /** The bike stood still near the phone for long: auto-connect paused until the rider leaves, rides or connects. */
         PAUSED_PARKED,
     }
 
     /** The thresholds; the defaults are the ones docs/roadmap.md gives, from docs/protocol.md, "Advertising". */
     static final class Settings {
         int nearDbm = -72;
-        long nearMs = 10_000;
-        int farDbm = -85;
-        long farMs = 5_000;
+        long nearMs = 5_000;
+        int farDbm = -76;
+        long farMs = 3_000;
         long parkedMs = 15 * 60_000;
         long rideGuardMs = 30_000;
         /** A pause for standing near ends once the bike has not been heard above the far threshold for this long. */
@@ -79,8 +79,6 @@ final class AutoConnect {
 
     enum State {
         OFF,
-        /** The app is on screen and connects by itself. */
-        APP,
         IDLE,
         NEAR,
         CONNECTING,
@@ -93,8 +91,8 @@ final class AutoConnect {
     enum Event {
         /** The median of the bike's signal was above the near threshold: it connects; value, the median in dBm. */
         CONNECTING,
-        /** The app left the screen: it took the app's connection over. */
-        TOOK_OVER,
+        /** The app connected to the bike: auto-connect holds that connection as its own. */
+        APP_CONNECTED,
         /** Auto-unlock unlocked the bike, which came near. */
         UNLOCKED_ON_ARRIVAL,
         /** Auto-unlock did not unlock it: the rider's own lock holds. */
@@ -103,12 +101,16 @@ final class AutoConnect {
         WAITING_MOVED,
         /** The rider left: it locks, then lets go; value, the signal's median in dBm. */
         LOCKING_AWAY,
-        /** The rider left: it lets go, the bike being locked already or auto-lock off; value, as above. */
+        /** The rider left: it lets go, auto-lock being off; value, as above. */
         LEAVING_AWAY,
+        /** The rider left: it lets go, the bike being locked already; value, as above. */
+        LEFT_LOCKED_AWAY,
         /** The bike stood still near for long: it locks, then lets go and pauses; value, in minutes. */
         LOCKING_PARKED,
-        /** As above, the bike being locked already or auto-lock off. */
+        /** As above, auto-lock being off. */
         LEAVING_PARKED,
+        /** As above, the bike being locked already. */
+        LEFT_LOCKED_PARKED,
         LOCKED,
         LOCK_FAILED,
         /** The connection dropped by itself. */
@@ -134,10 +136,7 @@ final class AutoConnect {
         }
     }
 
-    /**
-     * Where its timers stand, for the app to show: also while the app is on screen and holds the connection, when it
-     * only reads the signal and decides nothing, so that the rider sees what it would do.
-     */
+    /** Where its timers stand, for the app to show. */
     static final class Preview {
         State state;
         /** Whether the link is connected and the bike accepted the key, whoever connected it. */
@@ -158,6 +157,15 @@ final class AutoConnect {
         long guardLeftMs;
         /** How long until a bike standing still near is let go. */
         long parkedLeftMs;
+        /** The bike's advertising as last heard, and how long ago; null before it was heard. */
+        Integer heardDbm;
+        Long heardAgoMs;
+        /** The bike's lock as last known, also after the connection ended; null if never known. */
+        Boolean lastLocked;
+        /** Near the bike, its signal strong enough: how long until it connects; null otherwise. */
+        Long connectInMs;
+        /** Connected, the rider leaving: how long until it locks or lets go; null otherwise. */
+        Long leaveInMs;
     }
 
     /** How many events the history keeps. */
@@ -176,7 +184,6 @@ final class AutoConnect {
     private final Actions actions;
     private final Settings settings;
     private State state = State.OFF;
-    private boolean foreground;
     /** Whether the link is connected and the bike accepted the key, whoever connected it. */
     private boolean linkReady;
     /** The bike's lock as last read or notified; null when not known on this connection. */
@@ -194,13 +201,26 @@ final class AutoConnect {
     /** When the bike was last heard above the far threshold, during a pause for standing near. */
     private long lastNear;
     private final ArrayDeque<Reading> readings = new ArrayDeque<>();
-    /** When the link was last connected and accepted, whoever connected it. */
-    private long linkSince;
     /** Whether the wait for the ride guard was put in the history, until the signal is strong again. */
     private boolean waitLogged;
-    /** Set while a connection it made itself settles, which is no takeover of the app's. */
-    private boolean arriving;
+    /**
+     * Whether the signal of this connection was above the far threshold: only then does a weak signal mean that the rider
+     * left, so that a connection the app made from afar is not let go at once.
+     */
+    private boolean nearSeen;
+    /**
+     * Whether a connection the app made, with auto-unlock on, still waits for the rider to be near to unlock the bike
+     * once: a connection made from afar, or with the app open next to the bike, unlocks as one auto-connect made.
+     */
+    private boolean unlockPending;
     private final ArrayDeque<Entry> history = new ArrayDeque<>();
+    /** The bike's advertising as last heard, for the preview. */
+    private Integer heardDbm;
+    private long heardAt;
+    /** The bike's lock as last known, kept after the connection ends, for the preview. */
+    private Boolean lastLocked;
+    /** Since when the connection's signal reads below the far threshold, for the preview; null while above. */
+    private Long weakSince;
 
     AutoConnect(Actions actions, Settings settings) {
         this.actions = actions;
@@ -234,9 +254,8 @@ final class AutoConnect {
             preview.nearDbm = readings.isEmpty() ? null : median();
             preview.nearForMs = now - since;
         }
-        boolean holding = state == State.CONNECTED || (state == State.APP && linkReady);
-        if (holding) {
-            long from = state == State.CONNECTED ? since : linkSince;
+        if (state == State.CONNECTED) {
+            long from = since;
             preview.signalDbm = readings.isEmpty() ? null : median();
             preview.signalNowDbm = readings.isEmpty() ? null : readings.peekLast().rssi;
             preview.signalSettled = now - from >= settings.farMs;
@@ -244,6 +263,19 @@ final class AutoConnect {
         }
         if (lastMoved > Long.MIN_VALUE / 2) preview.movedAgoMs = now - lastMoved;
         preview.guardLeftMs = Math.max(0, settings.rideGuardMs - (now - lastMoved));
+        if (heardDbm != null) {
+            preview.heardDbm = heardDbm;
+            preview.heardAgoMs = now - heardAt;
+        }
+        preview.lastLocked = locked != null ? locked : lastLocked;
+        if (state == State.NEAR && !readings.isEmpty() && median() > settings.nearDbm) {
+            preview.connectInMs = Math.max(0, settings.nearMs - (now - since));
+        }
+        if (state == State.LEAVING) {
+            preview.leaveInMs = 0L;
+        } else if (state == State.CONNECTED && nearSeen && weakSince != null) {
+            preview.leaveInMs = Math.max(Math.max(0, settings.farMs - (now - weakSince)), preview.guardLeftMs);
+        }
         return preview;
     }
 
@@ -276,37 +308,16 @@ final class AutoConnect {
         actions.status(Status.PAUSED);
     }
 
-    void setForeground(boolean foreground, long now) {
-        this.foreground = foreground;
-        switch (state) {
-            case APP:
-            case IDLE:
-            case NEAR:
-            case CONNECTED:
-                settle(now);
-                break;
-            default:
-                // A connection or a lock under way finishes first; a pause or off stays.
-                break;
-        }
-    }
-
-    /** Where it stands now, from whether the app is on screen and whether the link is ready. */
+    /** Where it stands now, from whether the link is ready. */
     private void settle(long now) {
         State before = state;
-        if (foreground) {
-            if (before == State.IDLE || before == State.NEAR) {
-                actions.stopScan();
-                readings.clear();
-            }
-            state = State.APP;
-            actions.status(linkReady ? Status.CONNECTED : Status.LOOKING);
-        } else if (linkReady) {
+        if (linkReady) {
             if (before != State.CONNECTED) {
-                if (before == State.APP && !arriving) log(Event.TOOK_OVER, now, 0);
+                if (before == State.IDLE || before == State.NEAR) actions.stopScan();
                 state = State.CONNECTED;
                 since = now;
                 readings.clear();
+                weakSince = null;
             }
             actions.status(Status.CONNECTED);
         } else {
@@ -327,6 +338,8 @@ final class AutoConnect {
 
     /** An advertisement of the bike. */
     void heard(int rssi, long now) {
+        heardDbm = rssi;
+        heardAt = now;
         if (state == State.PAUSED && pausedParked && rssi >= settings.farDbm) lastNear = now;
         if (state == State.IDLE && rssi > settings.nearDbm) look(true, now);
         if (state == State.NEAR) readings.add(new Reading(now, rssi));
@@ -335,16 +348,17 @@ final class AutoConnect {
     /** The link is connected and the bike accepted the key. */
     void linkUp(long now) {
         linkReady = true;
-        linkSince = now;
-        if (state == State.APP) {
-            readings.clear();
-            actions.status(Status.CONNECTED);
+        if (state == State.IDLE || state == State.NEAR) {
+            // The app connected: held as auto-connect's own, which lets go once the rider has been near and left.
+            nearSeen = false;
+            unlockPending = settings.autoLock && settings.autoUnlock;
+            log(Event.APP_CONNECTED, now, 0);
+            settle(now);
         }
         if (state == State.CONNECTING) {
-            state = State.APP;
-            arriving = true;
+            nearSeen = true;
+            unlockPending = false;
             settle(now);
-            arriving = false;
             if (settings.autoLock && settings.autoUnlock && !Boolean.FALSE.equals(locked)) {
                 if (lockHeld) {
                     log(Event.UNLOCK_HELD, now, 0);
@@ -388,9 +402,6 @@ final class AutoConnect {
                     settle(now);
                 }
                 break;
-            case APP:
-                actions.status(Status.LOOKING);
-                break;
             default:
                 break;
         }
@@ -398,12 +409,16 @@ final class AutoConnect {
 
     /** The connection's signal strength. */
     void rssi(int rssi, long now) {
-        if (state == State.CONNECTED || (state == State.APP && linkReady)) readings.add(new Reading(now, rssi));
+        if (state == State.CONNECTED) readings.add(new Reading(now, rssi));
+        if (rssi >= settings.farDbm) weakSince = null;
+        else if (weakSince == null) weakSince = now;
     }
 
     /** The bike reported speed or power. */
     void moved(long now) {
         lastMoved = now;
+        // A pause for standing near ends once the bike is ridden again, as on a connection the app made.
+        if (state == State.PAUSED && pausedParked) resume(now);
     }
 
     /** The rider locked or unlocked the bike in the app: a lock by hand holds against auto-unlock. */
@@ -414,6 +429,7 @@ final class AutoConnect {
     /** The bike's lock, as read or notified. */
     void lockState(boolean locked) {
         this.locked = locked;
+        lastLocked = locked;
     }
 
     void lockDone(boolean ok, long now) {
@@ -449,7 +465,20 @@ final class AutoConnect {
             // The ride guard counts only movement the bike reported, so that a connection just made locks as soon as
             // the signal says the rider left; the parked time counts from the connection at the earliest.
             boolean moving = now - lastMoved < settings.rideGuardMs;
-            boolean weak = now - since >= settings.farMs && !readings.isEmpty() && median() < settings.farDbm;
+            boolean settled = now - since >= settings.farMs && !readings.isEmpty();
+            if (settled && median() >= settings.farDbm) nearSeen = true;
+            if (unlockPending && settled && locked != null && median() > settings.nearDbm) {
+                unlockPending = false;
+                if (locked) {
+                    if (lockHeld) {
+                        log(Event.UNLOCK_HELD, now, 0);
+                    } else {
+                        log(Event.UNLOCKED_ON_ARRIVAL, now, 0);
+                        actions.unlock();
+                    }
+                }
+            }
+            boolean weak = settled && nearSeen && median() < settings.farDbm;
             boolean parked = now - Math.max(lastMoved, since) >= settings.parkedMs;
             if (parked) {
                 leave(true, now, (int) (settings.parkedMs / 60_000));
@@ -460,10 +489,6 @@ final class AutoConnect {
                 log(Event.WAITING_MOVED, now, (int) ((now - lastMoved) / 1000));
             }
             if (!weak) waitLogged = false;
-        } else if (state == State.APP && linkReady) {
-            // Only read, for the preview the app shows: with the app on screen, it decides nothing.
-            actions.readRssi();
-            dropBefore(now - settings.farMs);
         }
     }
 
@@ -473,8 +498,12 @@ final class AutoConnect {
         leavingParked = parked;
         waitLogged = false;
         boolean lock = settings.autoLock && !Boolean.TRUE.equals(locked);
-        if (parked) log(lock ? Event.LOCKING_PARKED : Event.LEAVING_PARKED, now, value);
-        else log(lock ? Event.LOCKING_AWAY : Event.LEAVING_AWAY, now, value);
+        boolean alreadyLocked = settings.autoLock && !lock;
+        if (parked) {
+            log(lock ? Event.LOCKING_PARKED : alreadyLocked ? Event.LEFT_LOCKED_PARKED : Event.LEAVING_PARKED, now, value);
+        } else {
+            log(lock ? Event.LOCKING_AWAY : alreadyLocked ? Event.LEFT_LOCKED_AWAY : Event.LEAVING_AWAY, now, value);
+        }
         if (lock) actions.lock();
         else actions.disconnect();
     }
