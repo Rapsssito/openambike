@@ -1,5 +1,5 @@
 // The signal test: every bike a scan hears, with its address and how strong its signal is, to set the thresholds of
-// auto-connect (docs/roadmap.md). It only listens to the bikes' advertising and sends nothing; a bike is heard only
+// auto-connect. It only listens to the bikes' advertising and sends nothing; a bike is heard only
 // while no app is connected to it (docs/protocol.md, "Advertising"). Android only.
 import { bicycle, informationCircleOutline } from 'ionicons/icons';
 

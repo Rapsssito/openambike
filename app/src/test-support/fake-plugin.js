@@ -99,8 +99,8 @@ export function fakePlugin(fake) {
             plugin.paused = false;
         },
         /** What the service says auto-connect does, as src/auto-connect.js reads it. */
-        activity: /** @type {object} */ ({ running: false }),
-        getAutoConnectActivity: async () => ({ activity: JSON.stringify(plugin.activity) }),
+        events: /** @type {object} */ ({ running: false }),
+        getAutoConnectEvents: async () => ({ events: JSON.stringify(plugin.events) }),
         /** Whether the rider's lock holds, as the service keeps it. */
         lockHeld: false,
         /** @param {{ held: boolean }} options */
@@ -117,6 +117,7 @@ export function fakePlugin(fake) {
         /** What the rider answers to location "all the time". */
         backgroundLocation: true,
         requestBackgroundLocation: async () => ({ granted: plugin.backgroundLocation }),
+        setBackHandled: async () => undefined,
         getBackgroundLocation: async () => ({ granted: plugin.backgroundLocation }),
         /** The rides kept, as the service keeps their files, and the one being recorded. */
         rides: /** @type {Map<number, string>} */ (new Map()),

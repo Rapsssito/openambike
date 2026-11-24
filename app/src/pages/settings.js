@@ -1,4 +1,4 @@
-// The settings tab: the app's settings, the automatic options with auto-connect's activity, the owner key, and the
+// The settings tab: the app's settings, the automatic options with auto-connect's events, the owner key, and the
 // app's own information with the licences of what it ships. Nothing in it needs the bike connected: what does is on
 // the Bike and Battery tabs.
 import { documentText, informationCircle, key, logoGithub, options, swapHorizontal, trash } from 'ionicons/icons';
@@ -88,7 +88,7 @@ export function settingsPage({
     unitsChoice.set(units());
     unitsChoice.element.classList.add('local');
 
-    // The automatic options, with auto-connect's activity folded under them, where the connection's signal shows to
+    // The automatic options, with auto-connect's events folded under them, where the connection's signal shows to
     // check its thresholds against (docs/roadmap.md).
     const automatic = automaticSection({ autoConnect, keyStore, address: bikeAddress });
 

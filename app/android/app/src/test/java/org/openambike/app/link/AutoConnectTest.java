@@ -143,7 +143,7 @@ public class AutoConnectTest {
         auto.linkUp(now);
         assertEquals(AutoConnect.State.CONNECTED, auto.state());
         assertTrue(actions.did("stop scan"));
-        assertEquals(AutoConnect.Event.APP_CONNECTED, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.APP_CONNECTED, auto.events().get(0).event);
         signal(-90, 60_000);
         assertFalse(actions.did("lock"));
         assertFalse(actions.did("disconnect"));
@@ -174,7 +174,7 @@ public class AutoConnectTest {
         signal(-90, 5_500);
         assertFalse(actions.did("lock"));
         assertTrue(actions.did("disconnect"));
-        assertEquals(AutoConnect.Event.LEFT_LOCKED_AWAY, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LEFT_LOCKED_AWAY, auto.events().get(0).event);
     }
 
     @Test
@@ -192,7 +192,7 @@ public class AutoConnectTest {
         connectedInBackground();
         signal(-60, 31_000);
         auto.moved(now);
-        signal(-90, settings.rideGuardMs - 500);
+        signal(-90, settings.movementMs - 500);
         assertFalse(actions.did("lock"));
         signal(-90, 1_000);
         assertTrue(actions.did("lock"));
@@ -202,7 +202,7 @@ public class AutoConnectTest {
     public void walkingAwayRightAfterConnectingLocksWithoutWaitingForTheRideGuard() {
         connectedInBackground();
         auto.lockState(false);
-        signal(-90, settings.farMs + 1_000);
+        signal(-90, settings.signalMs + 1_000);
         assertTrue(actions.did("lock"));
     }
 
@@ -215,16 +215,16 @@ public class AutoConnectTest {
     }
 
     @Test
-    public void theHistorySaysWhatItDidAndWhyNewestFirst() {
+    public void theEventsSayWhatItDidAndWhyNewestFirst() {
         connectedInBackground();
         auto.lockState(false);
         signal(-60, 5_000);
         auto.moved(now);
-        signal(-90, settings.farMs + 1_000);
-        signal(-90, settings.rideGuardMs);
+        signal(-90, settings.signalMs + 1_000);
+        signal(-90, settings.movementMs);
         auto.lockDone(true, now);
         List<AutoConnect.Event> events = new java.util.ArrayList<>();
-        for (AutoConnect.Entry entry : auto.history()) events.add(entry.event);
+        for (AutoConnect.Entry entry : auto.events()) events.add(entry.event);
         assertEquals(
             List.of(
                 AutoConnect.Event.LOCKED,
@@ -234,8 +234,11 @@ public class AutoConnectTest {
             ),
             events
         );
-        assertEquals(-90, auto.history().get(1).value);
-        assertEquals(-60, auto.history().get(3).value);
+        assertEquals(-90, auto.events().get(1).value);
+        assertEquals(-60, auto.events().get(3).value);
+        // Waiting, it says the signal's median and how long the ride guard still holds the lock back.
+        assertEquals(-90, auto.events().get(2).value);
+        assertTrue(auto.events().get(2).extra >= 1 && auto.events().get(2).extra <= settings.movementMs / 1000);
     }
 
     @Test
@@ -249,7 +252,7 @@ public class AutoConnectTest {
             auto.tick(now);
         }
         assertFalse(actions.did("lock"));
-        signal(-90, settings.farMs + 1_000);
+        signal(-90, settings.signalMs + 1_000);
         assertTrue(actions.did("lock"));
     }
 
@@ -443,7 +446,7 @@ public class AutoConnectTest {
         assertFalse(actions.did("unlock"));
         signal(-54, 5_000);
         assertTrue(actions.did("unlock"));
-        assertEquals(AutoConnect.Event.UNLOCKED_ON_ARRIVAL, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.UNLOCKED_ON_ARRIVAL, auto.events().get(0).event);
     }
 
     @Test
@@ -455,7 +458,7 @@ public class AutoConnectTest {
         auto.linkUp(now);
         signal(-54, 6_000);
         assertFalse(actions.did("unlock"));
-        assertEquals(AutoConnect.Event.UNLOCK_HELD, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.UNLOCK_HELD, auto.events().get(0).event);
     }
 
     /** Connected because the phone came near, the bike locked by hand. */
@@ -530,7 +533,7 @@ public class AutoConnectTest {
         auto.lockState(true);
         auto.linkUp(now);
         assertEquals(AutoConnect.State.CONNECTED, auto.state());
-        assertEquals(AutoConnect.Event.RECONNECTED, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.RECONNECTED, auto.events().get(0).event);
         assertFalse(actions.did("unlock"));
         now += settings.awayMs;
         auto.tick(now);
@@ -547,7 +550,7 @@ public class AutoConnectTest {
         // The rider coming back: the first readings are weak, then strong; none of them alone decides.
         signal(-84, 1_000);
         assertFalse(actions.did("lock"));
-        signal(-60, settings.farMs);
+        signal(-60, settings.signalMs);
         assertFalse(actions.did("lock"));
         assertFalse(actions.did("disconnect"));
     }
@@ -558,7 +561,7 @@ public class AutoConnectTest {
         hear(-74, 500);
         auto.lockState(false);
         auto.linkUp(now);
-        signal(-84, settings.farMs + 1_000);
+        signal(-84, settings.signalMs + 1_000);
         assertTrue(actions.did("lock"));
     }
 
@@ -597,7 +600,8 @@ public class AutoConnectTest {
         auto.lockState(locked);
         signal(-60, 5_000);
         auto.moved(now);
-        signal(-90, settings.farMs + 500);
+        // The median has turned weak, with the bike's last report still within the guard.
+        signal(-90, settings.movementMs - 1_000);
         assertFalse(actions.did("lock"));
         actions.done.clear();
     }
@@ -608,7 +612,7 @@ public class AutoConnectTest {
         auto.linkDown(now);
         assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
         assertTrue(actions.did("gone"));
-        assertEquals(AutoConnect.Event.LINK_LEFT_UNLOCKED, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LINK_LEFT_UNLOCKED, auto.events().get(0).event);
         assertEquals(List.of("alert MAY_BE_UNLOCKED", "gone", "scan slow"), actions.done);
         assertEquals(null, auto.preview(now).dropLeftMs);
         // Coming back is an arrival: near for the near time, then it connects and unlocks.
@@ -624,7 +628,7 @@ public class AutoConnectTest {
         auto.linkDown(now);
         assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
         assertTrue(actions.did("gone"));
-        assertEquals(AutoConnect.Event.LINK_LEFT, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LINK_LEFT, auto.events().get(0).event);
     }
 
     @Test
@@ -635,14 +639,14 @@ public class AutoConnectTest {
         auto.moved(now);
         auto.linkDown(now);
         assertFalse(actions.did("gone"));
-        assertEquals(AutoConnect.Event.LINK_LOST, auto.history().get(0).event);
-        assertEquals(30, auto.history().get(0).value);
+        assertEquals(AutoConnect.Event.LINK_LOST, auto.events().get(0).event);
+        assertEquals(30, auto.events().get(0).value);
     }
 
     @Test
     public void aDropOfAMinuteAlertsThatTheBikeMayBeUnlockedAndTellsTheRiderLeft() {
         connectedThenDropped(false);
-        assertEquals(AutoConnect.Event.LINK_LOST, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LINK_LOST, auto.events().get(0).event);
         for (long end = now + settings.awayMs - 500; now < end; now += 500) auto.tick(now);
         assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
         assertFalse(actions.did("gone"));
@@ -650,7 +654,7 @@ public class AutoConnectTest {
         auto.tick(now);
         assertTrue(actions.did("alert MAY_BE_UNLOCKED"));
         assertTrue(actions.did("gone"));
-        assertEquals(AutoConnect.Event.LINK_LOST_UNLOCKED, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LINK_LOST_UNLOCKED, auto.events().get(0).event);
         assertEquals("scan slow", actions.done.get(actions.done.size() - 1));
     }
 
@@ -661,7 +665,7 @@ public class AutoConnectTest {
         auto.tick(now);
         assertFalse(actions.did("alert MAY_BE_UNLOCKED"));
         assertTrue(actions.did("gone"));
-        assertEquals(AutoConnect.Event.LINK_GONE, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LINK_GONE, auto.events().get(0).event);
     }
 
     @Test
@@ -692,7 +696,7 @@ public class AutoConnectTest {
         assertFalse(actions.did("disconnect"));
         signal(-60, 61_000);
         assertTrue(actions.did("disconnect"));
-        assertEquals(AutoConnect.Event.LEFT_LOCKED_PARKED, auto.history().get(0).event);
+        assertEquals(AutoConnect.Event.LEFT_LOCKED_PARKED, auto.events().get(0).event);
     }
 
     @Test

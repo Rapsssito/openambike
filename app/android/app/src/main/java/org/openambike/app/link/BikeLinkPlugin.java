@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.net.Uri;
 import android.os.IBinder;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -76,10 +77,28 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
         }
     };
 
+    /** Handles the back button while the app has an overlay open: the app closes it; otherwise Android does. */
+    private OnBackPressedCallback backCallback;
+
     @Override
     public void load() {
+        backCallback = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                notifyListeners("backButton", new JSObject());
+            }
+        };
+        getActivity().getOnBackPressedDispatcher().addCallback(getActivity(), backCallback);
         Context context = getContext();
         context.bindService(new Intent(context, BikeLinkService.class), connection, Context.BIND_AUTO_CREATE);
+    }
+
+    /** The app has an overlay open for the back button to close ({@code handled}), or has none. */
+    @PluginMethod
+    public void setBackHandled(PluginCall call) {
+        boolean handled = Boolean.TRUE.equals(call.getBoolean("handled", false));
+        getActivity().runOnUiThread(() -> backCallback.setEnabled(handled));
+        call.resolve();
     }
 
     // The app's screen on or off: in the background, the app only joins the link auto-connect holds.
@@ -290,16 +309,16 @@ public final class BikeLinkPlugin extends Plugin implements BikeLink.Listener {
         });
     }
 
-    /** What auto-connect does: where its timers stand and its history, as JSON text in {@code activity}. */
+    /** What auto-connect does: where its timers stand and its events, as JSON text in {@code events}. */
     @PluginMethod
-    public void getAutoConnectActivity(PluginCall call) {
+    public void getAutoConnectEvents(PluginCall call) {
         withLink(call, (link) -> link.post(() -> {
             try {
                 JSObject result = new JSObject();
-                result.put("activity", service.autoConnectActivity().toString());
+                result.put("events", service.autoConnectEvents().toString());
                 call.resolve(result);
             } catch (org.json.JSONException impossible) {
-                call.reject("The activity could not be read.");
+                call.reject("The events could not be read.");
             }
         }));
     }

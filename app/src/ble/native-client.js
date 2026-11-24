@@ -31,8 +31,8 @@
  * @property {() => Promise<void>} pauseAutoConnect
  * @property {() => Promise<void>} riderConnecting the rider asked to connect: a pause of auto-connect ends, and the app
  *     may connect after auto-connect let the bike go
- * @property {() => Promise<{ activity: string }>} getAutoConnectActivity where auto-connect's timers stand and its
- *     history, as JSON text
+ * @property {() => Promise<{ events: string }>} getAutoConnectEvents where auto-connect's timers stand and its
+ *     events, as JSON text
  * @property {(options: { config: string }) => Promise<{ id: number }>} startRide
  * @property {() => Promise<{ id?: number }>} stopRide
  * @property {(options: { paused: boolean }) => Promise<void>} pauseRide
@@ -48,6 +48,8 @@
  * @property {(options: { id: number, from: number }) => Promise<{ text: string, next: number }>} readRide
  * @property {(options: { id: number }) => Promise<void>} deleteRide
  * @property {(options: { name: string, text: string, type: string, title: string }) => Promise<void>} shareFile
+ * @property {(options: { handled: boolean }) => Promise<void>} setBackHandled whether the app closes an overlay with
+ *     Android's back button (while one is open) or Android handles it
  * @property {(event: string, listener: (data: any) => void) => Promise<ListenerHandle>} addListener
  */
 

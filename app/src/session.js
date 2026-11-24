@@ -268,8 +268,8 @@ export function createSession(bike, { confirmTimeoutMs = CONFIRM_TIMEOUT_MS } = 
             update({ assistLevels: await bike.changeAssistLevels(mode1, mode2) });
         },
 
-        // Nothing the bike notifies confirms these yet (docs/roadmap.md, "The meaning of the rest of the
-        // characteristics"): each resolves once the bike has the write.
+        // Nothing the bike notifies confirms these yet (their meaning is still
+        // unknown): each resolves once the bike has the write.
         restart: () => bike.restart(),
         sleep: () => bike.sleep(),
         calibrateTorqueSensor: () => bike.calibrateTorqueSensor(),

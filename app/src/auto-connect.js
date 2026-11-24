@@ -5,20 +5,15 @@ import { toHex } from './ble/native-client.js';
 import { ASI_MOVEMENT_BYTES, CHARACTERISTIC, encodeLock, encodeOwnerKey, OWNER_OK } from './ble/protocol.js';
 import { t } from './i18n/i18n.js';
 import { rideConfig } from './rides/rides.js';
+import { currentThresholds } from './thresholds.js';
 
 /** @typedef {import('./ble/native-client.js').BikeLinkPlugin} BikeLinkPlugin */
 
 /**
- * What auto-connect does, as the service says it: the signal as last read, how long it still waits for a dropped
- * connection, and its history, newest first.
- * @typedef {object} Activity
+ * What auto-connect does, as the service says it: whether it runs, and its events, newest first.
+ * @typedef {object} EventsReport
  * @property {boolean} running
- * @property {boolean} [connected] whether the bike is connected and accepted the key, whoever connected it
- * @property {number} [signalNowDbm] connected: the connection signal's latest reading
- * @property {number} [heardDbm] the bike's advertising as last heard
- * @property {number} [heardAgoMs] and how long ago
- * @property {number} [dropLeftMs] the connection dropped: how long it still waits for it to come back
- * @property {{ at: number, event: string, value: number }[]} [history] `at` in milliseconds since 1970
+ * @property {{ at: number, event: string, value: number, extra?: number }[]} [events] `at` in milliseconds since 1970
  */
 
 /**
@@ -26,37 +21,6 @@ import { rideConfig } from './rides/rides.js';
  * auto-ride only with auto-connect.
  * @typedef {{ autoLock: boolean, autoUnlock: boolean, autoRide: boolean }} Automatic
  */
-
-/**
- * When auto-connect connects and lets go, from the owner's measurements (docs/protocol.md, "Advertising";
- * docs/roadmap.md, "Auto-connect, auto-lock and rides").
- */
-export const AUTO_CONNECT_THRESHOLDS = Object.freeze({
-    /**
-     * Connects once the median of the bike's advertising over `nearMs` is above this: about 1.5 m, phone in a pocket; the
-     * time short, so that the bike unlocks soon after the rider reaches it.
-     */
-    nearDbm: -72,
-    nearMs: 5_000,
-    /**
-     * Lets go once the median of the connection's signal over `farMs` is below this, after it was above it: about 2.5 to
-     * 3 m, so that the lock goes out well before the link drops; a closed door or a wall (-80 dBm) between phone and bike
-     * also counts as away.
-     */
-    farDbm: -76,
-    farMs: 3_000,
-    /** Lets go, and pauses, once the bike has not moved for this long near the phone. */
-    parkedMs: 15 * 60_000,
-    /** Never locks while the bike reported movement in the last this long: ridden, it reports about once a second. */
-    rideGuardMs: 5_000,
-    /**
-     * The bike out of reach this long means the rider left, not a moment out of reach: a connection that dropped by
-     * itself, the signal strong before, is waited for this long (one that dropped as the signal said the rider was
-     * walking away is not waited for), and a pause for standing near ends once the bike has not been heard above
-     * `farDbm` for this long.
-     */
-    awayMs: 30_000,
-});
 
 /**
  * @param {Uint8Array} bytes
@@ -81,7 +45,8 @@ export function onText({ autoLock, autoUnlock, autoRide }) {
  */
 export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, autoRide = false }) {
     const { auth, lock, asiMetrics, battery } = CHARACTERISTIC;
-    const minutes = String(AUTO_CONNECT_THRESHOLDS.parkedMs / 60_000);
+    const thresholds = currentThresholds();
+    const minutes = String(thresholds.parkedMs / 60_000);
     return {
         address,
         autoLock,
@@ -100,7 +65,8 @@ export function autoConnectConfig({ address, key, autoLock, autoUnlock = false, 
         lock: { service: lock.service, characteristic: lock.uuid, value: hex(encodeLock(true)) },
         unlock: { service: lock.service, characteristic: lock.uuid, value: hex(encodeLock(false)) },
         movement: { service: asiMetrics.service, characteristic: asiMetrics.uuid, ...ASI_MOVEMENT_BYTES },
-        thresholds: AUTO_CONNECT_THRESHOLDS,
+        // What the rider set in Settings, the defaults where nothing is: every signal level and wait the service decides with.
+        thresholds,
         texts: {
             title: t('app.name'),
             quietChannel: t('autoConnect.quietChannel'),
@@ -205,9 +171,9 @@ export function createAutoConnect(plugin) {
         async hasBackgroundLocation() {
             return (await plugin.getBackgroundLocation()).granted;
         },
-        /** @returns {Promise<Activity>} */
-        async activity() {
-            return JSON.parse((await plugin.getAutoConnectActivity()).activity);
+        /** @returns {Promise<EventsReport>} */
+        async events() {
+            return JSON.parse((await plugin.getAutoConnectEvents()).events);
         },
         /** The rider disconnected: auto-connect waits until they connect again. */
         async pause() {

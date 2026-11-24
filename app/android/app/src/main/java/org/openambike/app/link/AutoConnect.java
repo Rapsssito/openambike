@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Auto-connect's decisions, with no Android code, so that they can be tested on their own: when to look for the bike,
- * when to connect, when to lock, and when to let go (docs/roadmap.md, "Auto-connect, auto-lock and rides"). It is told
+ * when to connect, when to lock, and when to let go. It is told
  * what happens, with the time, and answers through {@link Actions}; it is called on one thread only.
  *
  * <p>Whether the app is on screen or not, it connects once the median of the bike's signal has been above the near
@@ -66,18 +66,18 @@ final class AutoConnect {
         PAUSED_PARKED,
     }
 
-    /** The thresholds; the defaults are the ones docs/roadmap.md gives, from docs/protocol.md, "Advertising". */
+    /** The thresholds; the defaults rest on docs/protocol.md, "Advertising". */
     static final class Settings {
-        int nearDbm = -72;
-        long nearMs = 5_000;
-        int farDbm = -76;
-        long farMs = 3_000;
+        int nearDbm = -73;
+        int farDbm = -78;
+        /** The time the signal's median is taken over, to connect and to let go. */
+        long signalMs = 5_000;
         long parkedMs = 15 * 60_000;
         /**
          * Never locks while the bike reported movement in the last this long: ridden, it reports about once a second, and
          * nothing while it stands.
          */
-        long rideGuardMs = 5_000;
+        long movementMs = 5_000;
         /**
          * How long the bike out of reach means the rider left rather than a moment out of reach: a connection that dropped
          * by itself, the signal strong before, is waited for this long, and a pause for standing near ends once the bike
@@ -101,7 +101,7 @@ final class AutoConnect {
         PAUSED,
     }
 
-    /** What it did or decided, for the history the app shows; the texts are the app's. */
+    /** What it did or decided, for the events the app shows; the texts are the app's. */
     enum Event {
         /** The median of the bike's signal was above the near threshold: it connects; value, the median in dBm. */
         CONNECTING,
@@ -111,7 +111,7 @@ final class AutoConnect {
         UNLOCKED_ON_ARRIVAL,
         /** Auto-unlock did not unlock it: the rider's own lock holds. */
         UNLOCK_HELD,
-        /** The signal says the rider left, but the bike moved lately: it waits; value, seconds since it moved. */
+        /** The signal says the rider left, but the bike moved lately: it waits; value, the median in dBm; extra, seconds left. */
         WAITING_MOVED,
         /** The rider left: it locks, then lets go; value, the signal's median in dBm. */
         LOCKING_AWAY,
@@ -150,15 +150,18 @@ final class AutoConnect {
         final long at;
         final Event event;
         final int value;
+        /** A second figure, for the events that say two: 0 otherwise. */
+        final int extra;
 
-        Entry(long at, Event event, int value) {
+        Entry(long at, Event event, int value, int extra) {
             this.at = at;
             this.event = event;
             this.value = value;
+            this.extra = extra;
         }
     }
 
-    /** What the app's history shows with the events: the signal as last read, and the wait for a dropped connection. */
+    /** What the app's events show with them: the signal as last read, and the wait for a dropped connection. */
     static final class Preview {
         /** Whether the link is connected and the bike accepted the key, whoever connected it. */
         boolean connected;
@@ -171,8 +174,8 @@ final class AutoConnect {
         Long dropLeftMs;
     }
 
-    /** How many events the history keeps. */
-    static final int HISTORY = 30;
+    /** How many events it keeps. */
+    static final int KEPT = 30;
 
     private static final class Reading {
         final long at;
@@ -229,7 +232,7 @@ final class AutoConnect {
      * once: a connection made from afar, or with the app open next to the bike, unlocks as one auto-connect made.
      */
     private boolean unlockPending;
-    private final ArrayDeque<Entry> history = new ArrayDeque<>();
+    private final ArrayDeque<Entry> events = new ArrayDeque<>();
     /** The bike's advertising as last heard, for the preview. */
     private Integer heardDbm;
     private long heardAt;
@@ -244,18 +247,22 @@ final class AutoConnect {
     }
 
     /** The events kept, newest first. */
-    List<Entry> history() {
-        List<Entry> list = new ArrayList<>(history);
+    List<Entry> events() {
+        List<Entry> list = new ArrayList<>(events);
         java.util.Collections.reverse(list);
         return list;
     }
 
     private void log(Event event, long now, int value) {
-        history.add(new Entry(now, event, value));
-        while (history.size() > HISTORY) history.poll();
+        log(event, now, value, 0);
     }
 
-    /** What the app's history shows with the events, as of {@code now}. */
+    private void log(Event event, long now, int value, int extra) {
+        events.add(new Entry(now, event, value, extra));
+        while (events.size() > KEPT) events.poll();
+    }
+
+    /** What the app shows with the events, as of {@code now}. */
     Preview preview(long now) {
         Preview preview = new Preview();
         preview.connected = linkReady;
@@ -476,22 +483,22 @@ final class AutoConnect {
             return;
         }
         if (state == State.NEAR) {
-            dropBefore(now - settings.nearMs);
-            if (now - since >= settings.nearMs && median() > settings.nearDbm) {
+            dropBefore(now - settings.signalMs);
+            if (now - since >= settings.signalMs && median() > settings.nearDbm) {
                 actions.stopScan();
                 state = State.CONNECTING;
                 log(Event.CONNECTING, now, (int) Math.round(median()));
                 actions.connect();
-            } else if (droppedAt == null && now - since >= settings.nearMs && now - scanModeSince >= settings.scanModeMs) {
+            } else if (droppedAt == null && now - since >= settings.signalMs && now - scanModeSince >= settings.scanModeMs) {
                 look(false, now);
             }
         } else if (state == State.CONNECTED) {
             actions.readRssi();
-            dropBefore(now - settings.farMs);
+            dropBefore(now - settings.signalMs);
             // The ride guard counts only movement the bike reported, so that a connection just made locks as soon as
             // the signal says the rider left; the parked time counts from the connection at the earliest.
-            boolean moving = now - lastMoved < settings.rideGuardMs;
-            boolean settled = now - readingsSince >= settings.farMs && !readings.isEmpty();
+            boolean moving = now - lastMoved < settings.movementMs;
+            boolean settled = now - readingsSince >= settings.signalMs && !readings.isEmpty();
             if (settled && median() >= settings.farDbm) nearSeen = true;
             if (unlockPending && settled && locked != null && median() > settings.nearDbm) {
                 unlockPending = false;
@@ -512,13 +519,15 @@ final class AutoConnect {
                 leave(false, now, (int) Math.round(median()));
             } else if (weak && !waitLogged) {
                 waitLogged = true;
-                log(Event.WAITING_MOVED, now, (int) ((now - lastMoved) / 1000));
+                // Waiting for the bike to stop: the signal's median, and the seconds the guard still holds the lock back.
+                long guardLeftMs = settings.movementMs - (now - lastMoved);
+                log(Event.WAITING_MOVED, now, (int) Math.round(median()), (int) Math.ceil(guardLeftMs / 1000.0));
             }
             if (!weak) waitLogged = false;
         }
     }
 
-    /** @param value what the history says with it: the signal's median in dBm, or the minutes parked */
+    /** @param value what the event says with it: the signal's median in dBm, or the minutes parked */
     private void leave(boolean parked, long now, int value) {
         state = State.LEAVING;
         leavingParked = parked;
@@ -538,8 +547,8 @@ final class AutoConnect {
 
     /** Whether the connection's signal says the rider is walking away, after they were near: as when it lets go. */
     private boolean walkingAway(long now) {
-        dropBefore(now - settings.farMs);
-        boolean settled = now - readingsSince >= settings.farMs && !readings.isEmpty();
+        dropBefore(now - settings.signalMs);
+        boolean settled = now - readingsSince >= settings.signalMs && !readings.isEmpty();
         return settled && nearSeen && median() < settings.farDbm;
     }
 

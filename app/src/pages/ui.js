@@ -12,6 +12,7 @@ import {
 } from 'ionicons/icons';
 
 import { t } from '../i18n/i18n.js';
+import { closeOnBack } from './back-stack.js';
 import { describeError } from './errors.js';
 import { chartRange } from './format.js';
 
@@ -419,13 +420,7 @@ export function switchRow({ label, iconName, onChange, info, local = false, unav
     /** @type {HTMLElement[]} */
     let name = [];
     if (info) {
-        const infoButton = el(
-            'ion-button',
-            { fill: 'clear', shape: 'round', class: 'info-button', 'aria-label': t('common.info') },
-            [icon(informationCircleOutline, { slot: 'icon-only' })]
-        );
-        infoButton.addEventListener('click', () => explain({ header: label, message: info }));
-        name = [el('span', { class: 'row-label with-info' }, [label, infoButton])];
+        name = [el('span', { class: 'row-label with-info' }, [label, infoButton(label, info)])];
     }
     const element = el('div', { class: 'row' }, [
         ...(iconName ? [icon(iconName, { class: 'row-icon' })] : []),
@@ -473,6 +468,85 @@ export function switchRow({ label, iconName, onChange, info, local = false, unav
             if (on === null) return;
             current = on;
             show();
+        },
+    };
+}
+
+/**
+ * An (i) button that explains something in a dialog.
+ * @param {string} header
+ * @param {string} message
+ */
+function infoButton(header, message) {
+    const button = el(
+        'ion-button',
+        { fill: 'clear', shape: 'round', class: 'info-button', 'aria-label': t('common.info') },
+        [icon(informationCircleOutline, { slot: 'icon-only' })]
+    );
+    button.addEventListener('click', () => explain({ header, message }));
+    return button;
+}
+
+/**
+ * A labelled slider with its value large above it, its limits under it, and, once moved away from another value (the
+ * bike's), that value beside its own, small and struck through.
+ * @param {object} options
+ * @param {string} options.label
+ * @param {string} [options.iconName]
+ * @param {number} options.min
+ * @param {number} options.max
+ * @param {number} [options.step]
+ * @param {(value: number) => string} options.format the value with its unit
+ * @param {() => void} options.onInput called as the knob moves
+ * @param {() => void} [options.onChange] called once it is released
+ * @param {string} [options.info] what the value does, shown from an (i) beside its name, as a switch's is
+ * @param {[string, string]} [options.limits] what the two ends of the slider are called, the formatted limits by default
+ */
+export function slider({ label, iconName, min, max, step = 1, format, onInput, onChange, info, limits }) {
+    const value = el('span', { class: 'slider-value' });
+    const range = el('ion-range', { min: String(min), max: String(max), step: String(step), 'aria-label': label });
+    const read = () => Number(/** @type {{ value?: unknown }} */ (range).value);
+    const show = () => {
+        value.textContent = format(read());
+    };
+    range.addEventListener('ionInput', () => {
+        show();
+        onInput();
+    });
+    if (onChange) range.addEventListener('ionChange', onChange);
+    const onBike = el('s', { class: 'slider-bike' });
+    onBike.hidden = true;
+    const [low, high] = limits ?? [format(min), format(max)];
+    const element = el('div', { class: 'slider' }, [
+        el('div', { class: 'slider-head' }, [
+            el('span', { class: 'slider-label' }, [
+                ...(iconName ? [icon(iconName), ' '] : []),
+                label,
+                ...(info ? [infoButton(label, info)] : []),
+            ]),
+            el('span', { class: 'slider-values' }, [onBike, value]),
+        ]),
+        range,
+        el('div', { class: 'slider-limits' }, [el('span', {}, [low]), el('span', {}, [high])]),
+    ]);
+    return {
+        element,
+        read,
+        /** @param {number} next */
+        set(next) {
+            Object.assign(range, { value: next });
+            show();
+        },
+        show,
+        /**
+         * Shows the bike's value under the slider while the slider is away from it.
+         * @param {number | null} bike null while not known
+         */
+        showBike(bike) {
+            onBike.hidden = bike === null || bike === read();
+            if (bike === null) return;
+            onBike.textContent = format(bike);
+            onBike.setAttribute('aria-label', t('assist.onBike', { value: format(bike) }));
         },
     };
 }
@@ -569,13 +643,24 @@ export async function openSheet(title, content, onClose) {
         el('ion-content', {}, [el('div', { class: 'page-body sheet-body' }, content)]),
     ]);
     // The sheet's component is loaded the first time a sheet opens, to keep it out of the app's start.
-    const { defineCustomElement } = await import('@ionic/core/components/ion-modal.js');
-    defineCustomElement();
-    const modal = await modalController.create({ component: sheet });
-    closeButton.addEventListener('click', () => modal.dismiss());
-    if (onClose) modal.onDidDismiss().then(onClose, onClose);
-    await modal.present();
-    return modal;
+    // The back button closes it, as the close button does.
+    /** @type {Promise<HTMLIonModalElement> | undefined} */
+    let created;
+    const released = closeOnBack(() => void created?.then((modal) => modal.dismiss()));
+    try {
+        const { defineCustomElement } = await import('@ionic/core/components/ion-modal.js');
+        defineCustomElement();
+        created = modalController.create({ component: sheet });
+        const modal = await created;
+        closeButton.addEventListener('click', () => modal.dismiss());
+        modal.onDidDismiss().then(released, released);
+        if (onClose) modal.onDidDismiss().then(onClose, onClose);
+        await modal.present();
+        return modal;
+    } catch (error) {
+        released();
+        throw error;
+    }
 }
 
 /**
@@ -630,8 +715,7 @@ export async function chooseOne({ header, message, options, confirm, selected })
             { text: confirm, role: 'confirm' },
         ],
     });
-    await alert.present();
-    const { role, data } = await alert.onDidDismiss();
+    const { role, data } = await presentAlert(alert);
     return role === 'confirm' ? /** @type {{ values: T }} */ (data).values : null;
 }
 
@@ -823,6 +907,20 @@ export function overlayButton(iconName, label, onClick) {
 }
 
 /**
+ * Shows a dialog, which the back button closes like its cancel button, and waits for it to be closed.
+ * @param {HTMLIonAlertElement} alert
+ */
+async function presentAlert(alert) {
+    const released = closeOnBack(() => void alert.dismiss());
+    try {
+        await alert.present();
+        return await alert.onDidDismiss();
+    } finally {
+        released();
+    }
+}
+
+/**
  * Explains something in a dialog with one button that closes it.
  * @param {{ header: string, message: string }} options
  */
@@ -832,8 +930,7 @@ export async function explain({ header, message }) {
         message,
         buttons: [{ text: t('common.ok'), role: 'cancel' }],
     });
-    await alert.present();
-    await alert.onDidDismiss();
+    await presentAlert(alert);
 }
 
 /**
@@ -852,8 +949,7 @@ export async function askNumber({ header, message, value, unit, confirm, reset }
             { text: confirm, role: 'confirm' },
         ],
     });
-    await alert.present();
-    const { role, data } = await alert.onDidDismiss();
+    const { role, data } = await presentAlert(alert);
     if (role === 'reset') return 'reset';
     if (role !== 'confirm') return null;
     return Number(/** @type {{ values: { value: string } }} */ (data).values.value);
@@ -890,8 +986,7 @@ export async function confirmAction({ header, message, confirm, danger = false }
             { text: confirm, role: danger ? 'destructive' : 'confirm' },
         ],
     });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
+    const { role } = await presentAlert(alert);
     return role === 'confirm' || role === 'destructive';
 }
 

@@ -17,10 +17,11 @@ final class AutoRide {
     }
 
     static final class Settings {
-        /** How long the bike reports movement, from a report that it is pedalled, before a ride starts. */
-        long movingMs = 5_000;
-        /** A gap between two reports of movement longer than this is a moment standing: the movement counts again. */
-        long gapMs = 3_000;
+        /**
+         * How long the bike reports movement, from a report that it is pedalled, before a ride starts; a gap between two
+         * reports of movement longer than this is a moment standing: the movement counts again.
+         */
+        long movementMs = 5_000;
         /** After a stop by hand, how long the bike stands still before a ride may start again: the parked time. */
         long parkedMs = 15 * 60_000;
     }
@@ -56,10 +57,10 @@ final class AutoRide {
     void bikeMoved(long now, boolean pedalled) {
         lastMoved = now;
         if (riding || !armed) return;
-        if (movingSince != null && now - lastMove > settings.gapMs) movingSince = null;
+        if (movingSince != null && now - lastMove > settings.movementMs) movingSince = null;
         if (movingSince == null && pedalled) movingSince = now;
         lastMove = now;
-        if (movingSince != null && now - movingSince >= settings.movingMs) {
+        if (movingSince != null && now - movingSince >= settings.movementMs) {
             movingSince = null;
             riding = true;
             started = true;

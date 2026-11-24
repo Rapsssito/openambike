@@ -477,6 +477,10 @@
     padding: 16px 16px 0;
 }
 
+.mode-head:has(> .mode-badge:only-child) {
+    justify-content: flex-end;
+}
+
 .mode-name {
     font-weight: 700;
     font-size: 1.1rem;
@@ -489,12 +493,20 @@
 .slider-head {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
 }
 
 .slider-label {
-    color: var(--app-muted);
-    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--app-text);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.slider-label .info-button {
+    color: var(--app-text);
 }
 
 .slider-value {
@@ -513,8 +525,8 @@
 .slider-limits {
     display: flex;
     justify-content: space-between;
-    font-size: 0.75rem;
-    color: var(--app-muted);
+    font-size: 0.85rem;
+    color: var(--app-text);
     margin-top: -6px;
 }
 
@@ -1049,7 +1061,7 @@ ion-toast.toast-error {
     font-size: 0.85rem;
 }
 
-.history-lines {
+.event-lines {
     padding: 8px 16px;
 }
 

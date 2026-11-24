@@ -78,7 +78,7 @@ public class AutoRideTest {
     @Test
     public void aMomentStandingCountsTheMovementAgainFromTheNextPedalling() {
         move(4_000);
-        stand(4_000);
+        stand(6_000);
         wheel(10_000);
         assertEquals(List.of(), done);
         move(5_000);

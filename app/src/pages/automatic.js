@@ -1,12 +1,13 @@
 // The automatic options, auto-lock, auto-unlock and auto-ride: settings of the phone that the app's native service keeps
 // (Android only), shown in Settings, with or without a bike connected. Auto-connect has no switch of its own: it runs
 // while auto-lock or auto-ride is on, which need it, and stops once both are off.
-import { bicycle, bluetooth, lockClosed, lockOpen, time, warning } from 'ionicons/icons';
+import { bicycle, bluetooth, lockClosed, lockOpen, pulse, time, warning } from 'ionicons/icons';
 
 import { needsAutoConnect } from '../auto-connect.js';
 import { t } from '../i18n/i18n.js';
-import { describeActivity, RECENT_EVENTS } from './activity.js';
+import { describeEvents, RECENT_EVENTS } from './events.js';
 import { describeError } from './errors.js';
+import { openThresholds, thresholdsDetail } from './thresholds.js';
 import { actionRow, button, card, confirmAction, el, fold, openSheet, section, showToast, switchRow } from './ui.js';
 
 /** @typedef {import('../storage/key-store.js').KeyStore} KeyStore */
@@ -23,7 +24,7 @@ const NONE = Object.freeze({ autoLock: false, autoUnlock: false, autoRide: false
  * @param {KeyStore} options.keyStore
  * @param {() => string | null} options.address the Bluetooth address of the bike auto-connect connects to
  * @param {(enabled: boolean) => void} [options.onShow] called whenever it shows whether auto-connect runs
- * @returns {{ element: HTMLElement, stop: () => void }} `stop` ends its watch of the app and of the activity
+ * @returns {{ element: HTMLElement, stop: () => void }} `stop` ends its watch of the app and of the events
  */
 export function automaticSection({ autoConnect, keyStore, address, onShow }) {
     /** @type {Automatic} */
@@ -35,8 +36,9 @@ export function automaticSection({ autoConnect, keyStore, address, onShow }) {
         autoUnlockRow.set(automatic.autoUnlock);
         autoRideRow.set(automatic.autoRide);
         autoUnlockRow.element.hidden = !automatic.autoLock;
-        activityFold.hidden = !enabled;
-        if (!enabled) activityFold.open = false;
+        thresholdsRow.hidden = !enabled;
+        eventsFold.hidden = !enabled;
+        if (!enabled) eventsFold.open = false;
         if (onShow) onShow(enabled);
         checkRideLocation();
     };
@@ -131,66 +133,78 @@ export function automaticSection({ autoConnect, keyStore, address, onShow }) {
     });
     autoUnlockRow.element.hidden = true;
 
-    // The history, folded: the signal as last read, read every second while open and on screen, and what auto-connect
-    // did and why, newest first: the newest few, and all of them in a sheet on asking, so that the page stays short.
-    const signalList = el('div');
+    // Above the events, where the connection's signal shows to set the levels against: the signal levels and waits the
+    // service decides with, in a sheet, saved as the assist levels are; saving gives them to the service.
+    const thresholdsRow = actionRow({
+        iconName: pulse,
+        label: t('thresholds.title'),
+        detail: thresholdsDetail(),
+        onClick: () =>
+            openThresholds(async () => {
+                const detail = thresholdsRow.querySelector('.row-detail');
+                if (detail) detail.textContent = thresholdsDetail();
+                if (needsAutoConnect(automatic)) await apply(automatic);
+            }),
+    });
+    thresholdsRow.hidden = true;
+
+    // The events, folded, read every second while open and on screen: what auto-connect did and why, newest first: the newest few, and all of them in a sheet on asking, so that the page stays short.
     const recentList = el('div');
     /** @param {string} first @param {string} second */
     const line = (first, second) =>
         el('div', { class: 'fold-line' }, [el('span', {}, [first]), el('span', {}, [second])]);
     /** @type {{ time: string, text: string }[]} */
     let allEvents = [];
-    const showAllButton = button(t('activity.showAll'), { fill: 'outline' });
+    const showAllButton = button(t('events.showAll'), { fill: 'outline' });
     showAllButton.hidden = true;
     showAllButton.addEventListener('click', () =>
-        openSheet(t('activity.title'), [
+        openSheet(t('events.title'), [
             card([
                 el(
                     'div',
-                    { class: 'history-lines' },
+                    { class: 'event-lines' },
                     allEvents.map(({ time: at, text }) => line(at, text))
                 ),
             ]),
         ])
     );
-    const readActivity = async () => {
+    const readEvents = async () => {
         if (!autoConnect || document.visibilityState !== 'visible') return;
-        const activity = await autoConnect.activity().catch(() => null);
-        if (!activity) return;
-        const { signal, recent, history } = describeActivity(activity);
-        allEvents = history;
-        signalList.replaceChildren(line(t('activity.signal'), signal));
+        const report = await autoConnect.events().catch(() => null);
+        if (!report) return;
+        const { recent, events } = describeEvents(report);
+        allEvents = events;
         recentList.replaceChildren(
             ...(recent.length > 0
                 ? recent.map(({ time: at, text }) => line(at, text))
-                : [el('div', { class: 'fold-line' }, [t('activity.none')])])
+                : [el('div', { class: 'fold-line' }, [t('events.none')])])
         );
-        showAllButton.hidden = history.length <= RECENT_EVENTS;
+        showAllButton.hidden = events.length <= RECENT_EVENTS;
     };
     /** @type {ReturnType<typeof setInterval> | null} */
-    let activityTimer = null;
-    const stopActivity = () => {
-        if (activityTimer !== null) clearInterval(activityTimer);
-        activityTimer = null;
+    let eventsTimer = null;
+    const stopEvents = () => {
+        if (eventsTimer !== null) clearInterval(eventsTimer);
+        eventsTimer = null;
     };
-    const activityFold = fold({
+    const eventsFold = fold({
         iconName: time,
-        label: t('activity.title'),
-        content: [signalList, recentList, showAllButton],
+        label: t('events.title'),
+        content: [recentList, showAllButton],
         onToggle: (open) => {
-            stopActivity();
+            stopEvents();
             if (!open) return;
-            readActivity();
-            activityTimer = setInterval(readActivity, 1000);
+            readEvents();
+            eventsTimer = setInterval(readEvents, 1000);
         },
     });
-    activityFold.hidden = true;
+    eventsFold.hidden = true;
 
     // Indented under what they depend on: auto-unlock under auto-lock, the warning about location under auto-ride.
     for (const row of [autoUnlockRow.element, rideLocationRow]) row.classList.add('sub-option');
     const element = section(
         t('more.automatic'),
-        [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, rideLocationRow, activityFold],
+        [autoLockRow.element, autoUnlockRow.element, autoRideRow.element, rideLocationRow, thresholdsRow, eventsFold],
         { iconName: bluetooth }
     );
     if (autoConnect) {
@@ -209,7 +223,7 @@ export function automaticSection({ autoConnect, keyStore, address, onShow }) {
     }
     const stop = () => {
         document.removeEventListener('visibilitychange', onVisible);
-        stopActivity();
+        stopEvents();
     };
     return { element, stop };
 }

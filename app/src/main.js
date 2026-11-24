@@ -38,6 +38,7 @@ import { createAutoConnect } from './auto-connect.js';
 import { createNativeClient } from './ble/native-client.js';
 import { createRides } from './rides/rides.js';
 import { pickLanguage, setLanguage, t } from './i18n/i18n.js';
+import { backStack } from './pages/back-stack.js';
 import { connectPage } from './pages/connect.js';
 import { tabsPage } from './pages/tabs.js';
 import { confirmAction } from './pages/ui.js';
@@ -82,6 +83,8 @@ const bikeLink =
     Capacitor.getPlatform() === 'android'
         ? /** @type {import('./ble/native-client.js').BikeLinkPlugin} */ (registerPlugin('BikeLink'))
         : null;
+// Android's back button closes the overlay open, if any, before it leaves the app.
+bikeLink && backStack.connect(bikeLink).catch(() => undefined);
 const client = bikeLink ? createNativeClient(bikeLink) : BleClient;
 const autoConnect = bikeLink ? createAutoConnect(bikeLink) : null;
 const rides = bikeLink ? createRides(bikeLink) : null;

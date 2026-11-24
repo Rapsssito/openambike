@@ -7,59 +7,11 @@ import { arrowUndo, flash, save as saveIcon, speedometer } from 'ionicons/icons'
 import { ASSIST_LIMITS } from '../ble/protocol.js';
 import { t } from '../i18n/i18n.js';
 import { KM_PER_MILE, number } from './format.js';
-import { button, card, el, icon, page, send, showToast } from './ui.js';
+import { button, card, el, icon, page, send, showToast, slider } from './ui.js';
 
 /** @typedef {import('../bike-link.js').BikeView} BikeView */
 /** @typedef {import('../session.js').BikeState} BikeState */
 /** @typedef {import('../preferences.js').Units} Units */
-
-/**
- * A labelled slider with its value large above it, its limits under it, and, once moved away from the bike's value,
- * that value beside its own, small and struck through.
- * @param {{ label: string, iconName: string, min: number, max: number, format: (value: number) => string, onInput: () => void }} options
- */
-function slider({ label, iconName, min, max, format, onInput }) {
-    const value = el('span', { class: 'slider-value' });
-    const range = el('ion-range', { min: String(min), max: String(max), step: '1', 'aria-label': label });
-    const read = () => Number(/** @type {{ value?: unknown }} */ (range).value);
-    const show = () => {
-        value.textContent = format(read());
-    };
-    range.addEventListener('ionInput', () => {
-        show();
-        onInput();
-    });
-    const onBike = el('s', { class: 'slider-bike' });
-    onBike.hidden = true;
-    const element = el('div', { class: 'slider' }, [
-        el('div', { class: 'slider-head' }, [
-            el('span', { class: 'slider-label' }, [icon(iconName), ' ', label]),
-            el('span', { class: 'slider-values' }, [onBike, value]),
-        ]),
-        range,
-        el('div', { class: 'slider-limits' }, [el('span', {}, [format(min)]), el('span', {}, [format(max)])]),
-    ]);
-    return {
-        element,
-        read,
-        /** @param {number} next */
-        set(next) {
-            Object.assign(range, { value: next });
-            show();
-        },
-        show,
-        /**
-         * Shows the bike's value under the slider while the slider is away from it.
-         * @param {number | null} bike null while not known
-         */
-        showBike(bike) {
-            onBike.hidden = bike === null || bike === read();
-            if (bike === null) return;
-            onBike.textContent = format(bike);
-            onBike.setAttribute('aria-label', t('assist.onBike', { value: format(bike) }));
-        },
-    };
-}
 
 /**
  * @param {BikeView} session

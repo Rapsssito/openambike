@@ -42,6 +42,8 @@ final class AutoConnectConfig {
      */
     final int[] pedalled;
     final AutoConnect.Settings settings = new AutoConnect.Settings();
+    /** Auto-ride's thresholds, from the same {@code thresholds} as auto-connect's. */
+    final AutoRide.Settings rideSettings = new AutoRide.Settings();
     final JSONObject texts;
     /** With auto-ride on, what src/rides/ prepares for a ride, as for one started by hand; null with it off. */
     final String ride;
@@ -64,12 +66,14 @@ final class AutoConnectConfig {
         for (int i = 0; i < pedalled.length; i++) pedalled[i] = pedalledJson.getInt(i);
         JSONObject thresholds = root.getJSONObject("thresholds");
         settings.nearDbm = thresholds.getInt("nearDbm");
-        settings.nearMs = thresholds.getLong("nearMs");
         settings.farDbm = thresholds.getInt("farDbm");
-        settings.farMs = thresholds.getLong("farMs");
+        // A configuration from before a threshold existed has the default of the setting until the app's next connection.
+        settings.signalMs = thresholds.optLong("signalMs", settings.signalMs);
         settings.parkedMs = thresholds.getLong("parkedMs");
-        settings.rideGuardMs = thresholds.getLong("rideGuardMs");
+        settings.movementMs = thresholds.optLong("movementMs", settings.movementMs);
         settings.awayMs = thresholds.optLong("awayMs", settings.awayMs);
+        rideSettings.parkedMs = settings.parkedMs;
+        rideSettings.movementMs = settings.movementMs;
         settings.autoLock = root.getBoolean("autoLock");
         settings.autoUnlock = settings.autoLock && root.optBoolean("autoUnlock", false);
         texts = root.getJSONObject("texts");

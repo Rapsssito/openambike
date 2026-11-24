@@ -57,6 +57,7 @@ final class BikeLink {
     static final UUID CLIENT_CHARACTERISTIC_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     static final long CONNECT_TIMEOUT_MS = 10000;
     static final long OPERATION_TIMEOUT_MS = 5000;
+    static final long MTU_TIMEOUT_MS = 2000;
     /** Bonding waits for the rider to type the code the bike shows. */
     static final long BOND_TIMEOUT_MS = 60000;
     /** The largest MTU asked for; the bike's IoT state comes in notifications of up to 50 bytes. */
@@ -96,6 +97,12 @@ final class BikeLink {
     private BluetoothGatt gatt;
     private String address;
     private boolean ready;
+    /**
+     * Whether this connection asked for its MTU, after discovering the services. Connecting again within seconds of a
+     * disconnect, Android reuses the link it still holds and reports that link's MTU at once, before the services are
+     * discovered: only the answer to this connection's own request makes it ready.
+     */
+    private boolean mtuRequested;
     /** Every caller waiting for the connection under way; empty when none is. */
     private final List<Callback> connecting = new ArrayList<>();
     private Callback disconnecting;
@@ -104,6 +111,10 @@ final class BikeLink {
     private final Runnable connectTimeout = this::onConnectTimeout;
     private final Runnable operationTimeout = () -> finish(current, null, "Operation timeout.");
     private final Runnable disconnectTimeout = this::onDisconnectTimeout;
+    /** The MTU's answer never came: the connection goes on with the MTU it has. */
+    private final Runnable mtuTimeout = () -> {
+        if (gatt != null && mtuRequested && !ready) connected();
+    };
     private ScanCallback scan;
 
     BikeLink(Context context, BluetoothAdapter adapter, Listener listener) {
@@ -282,6 +293,8 @@ final class BikeLink {
             failAll("Disconnected.");
             settleConnecting("Disconnected.");
             ready = false;
+            mtuRequested = false;
+            handler.removeCallbacks(mtuTimeout);
             this.address = address;
             connecting.add(callback);
             BluetoothDevice device = adapter.getRemoteDevice(address);
@@ -345,6 +358,7 @@ final class BikeLink {
 
     private void connected() {
         handler.removeCallbacks(connectTimeout);
+        handler.removeCallbacks(mtuTimeout);
         ready = true;
         settleConnecting(null);
     }
@@ -353,6 +367,7 @@ final class BikeLink {
         String gone = address;
         handler.removeCallbacks(connectTimeout);
         handler.removeCallbacks(disconnectTimeout);
+        handler.removeCallbacks(mtuTimeout);
         if (gatt != null) gatt.close();
         gatt = null;
         ready = false;
@@ -499,14 +514,16 @@ final class BikeLink {
                     return;
                 }
                 // The largest MTU both support is chosen; without it, the connection goes on with the default one.
+                mtuRequested = true;
                 if (!gatt.requestMtu(REQUEST_MTU)) connected();
+                else handler.postDelayed(mtuTimeout, MTU_TIMEOUT_MS);
             });
         }
 
         @Override
         public void onMtuChanged(BluetoothGatt changed, int mtu, int status) {
             handler.post(() -> {
-                if (changed == gatt && !ready) connected();
+                if (changed == gatt && mtuRequested && !ready) connected();
             });
         }
 

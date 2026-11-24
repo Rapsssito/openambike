@@ -1,10 +1,11 @@
-import { AUTO_CONNECT_THRESHOLDS, autoConnectConfig, createAutoConnect } from './auto-connect.js';
+import { autoConnectConfig, createAutoConnect } from './auto-connect.js';
 import { CHARACTERISTIC } from './ble/protocol.js';
 import es from './i18n/es.json' with { type: 'json' };
 import { setLanguage, t } from './i18n/i18n.js';
 import { fakeClient } from './test-support/fake-client.js';
 import { rideConfig } from './rides/rides.js';
 import { fakePlugin } from './test-support/fake-plugin.js';
+import { DEFAULT_THRESHOLDS, saveThresholds } from './thresholds.js';
 
 const KEY = 'A'.repeat(28);
 const ADDRESS = 'AA:BB:CC:DD:EE:FF';
@@ -37,15 +38,33 @@ describe('auto-connect', () => {
             to: 12,
             pedalled: [8, 10],
         });
-        expect(config.thresholds).toEqual(AUTO_CONNECT_THRESHOLDS);
-        expect(config.thresholds).toMatchObject({
-            nearDbm: -72,
-            nearMs: 5_000,
-            farDbm: -76,
-            farMs: 3_000,
+        expect(config.thresholds).toEqual({
+            nearDbm: -73,
+            farDbm: -78,
+            signalMs: 5_000,
+            movementMs: 5_000,
+            awayMs: 30_000,
             parkedMs: 900_000,
         });
         expect(config.unlock).toEqual({ ...config.lock, value: '00' });
+    });
+
+    test('the service decides with what the rider set', () => {
+        const items = new Map();
+        Object.assign(globalThis, {
+            localStorage: {
+                getItem: (/** @type {string} */ key) => items.get(key) ?? null,
+                setItem: (/** @type {string} */ key, /** @type {string} */ value) => items.set(key, value),
+                removeItem: (/** @type {string} */ key) => items.delete(key),
+            },
+        });
+        try {
+            saveThresholds({ ...DEFAULT_THRESHOLDS, nearDbm: -66, movementMs: 8_000 });
+            const config = autoConnectConfig({ address: ADDRESS, key: KEY, autoLock: true });
+            expect(config.thresholds).toEqual({ ...DEFAULT_THRESHOLDS, nearDbm: -66, movementMs: 8_000 });
+        } finally {
+            Reflect.deleteProperty(globalThis, 'localStorage');
+        }
     });
 
     test('with auto-ride on, the service also listens to the battery, which a ride records', () => {
@@ -171,10 +190,10 @@ describe('auto-connect', () => {
         expect((await autoConnect.status()).enabled).toBe(false);
     });
 
-    test("auto-connect's activity is read from the service", async () => {
+    test("auto-connect's events are read from the service", async () => {
         const plugin = fakePlugin(fakeClient());
-        plugin.activity = { running: true, state: 'IDLE', history: [] };
-        expect(await createAutoConnect(plugin).activity()).toEqual({ running: true, state: 'IDLE', history: [] });
+        plugin.events = { running: true, state: 'IDLE', events: [] };
+        expect(await createAutoConnect(plugin).events()).toEqual({ running: true, state: 'IDLE', events: [] });
     });
 
     test('pausing and the connection signal go to the service', async () => {

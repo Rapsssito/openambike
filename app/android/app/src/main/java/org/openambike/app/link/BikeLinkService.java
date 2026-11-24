@@ -272,7 +272,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
             stopSelf();
             return;
         }
-        // The same configuration again, as at each connection of the app: auto-connect goes on, with its pause and history.
+        // The same configuration again, as at each connection of the app: auto-connect goes on, with its pause and events.
         if (json.equals(savedConfig) && config != null) {
             ContextCompat.startForegroundService(this, new Intent(this, BikeLinkService.class));
             return;
@@ -305,10 +305,10 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
 
     /**
      * What auto-connect does, for the app's Settings: whether it runs, the signal as last read, how long it still waits
-     * for a dropped connection, and its history, newest first, each event with its time in milliseconds since 1970.
+     * for a dropped connection, and its events, newest first, each event with its time in milliseconds since 1970.
      * Called on the link's thread.
      */
-    JSONObject autoConnectActivity() throws JSONException {
+    JSONObject autoConnectEvents() throws JSONException {
         JSONObject result = new JSONObject();
         if (auto == null) return result.put("running", false);
         long now = now();
@@ -318,16 +318,17 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (preview.signalNowDbm != null) result.put("signalNowDbm", preview.signalNowDbm);
         if (preview.heardDbm != null) result.put("heardDbm", preview.heardDbm).put("heardAgoMs", preview.heardAgoMs);
         if (preview.dropLeftMs != null) result.put("dropLeftMs", preview.dropLeftMs);
-        JSONArray history = new JSONArray();
-        for (AutoConnect.Entry entry : auto.history()) {
-            history.put(
+        JSONArray events = new JSONArray();
+        for (AutoConnect.Entry entry : auto.events()) {
+            events.put(
                 new JSONObject()
                     .put("at", wall - (now - entry.at))
                     .put("event", entry.event.name())
                     .put("value", entry.value)
+                    .put("extra", entry.extra)
             );
         }
-        return result.put("history", history);
+        return result.put("events", events);
     }
 
 
@@ -640,9 +641,7 @@ public final class BikeLinkService extends Service implements BikeLink.Listener,
         if (bikeLocked != null) auto.lockState(bikeLocked);
         long now = now();
         if (config.ride != null) {
-            AutoRide.Settings rideSettings = new AutoRide.Settings();
-            rideSettings.parkedMs = config.settings.parkedMs;
-            autoRide = new AutoRide(autoRideActions, rideSettings);
+            autoRide = new AutoRide(autoRideActions, config.rideSettings);
             if (rideConfig != null) autoRide.rideGoingOn(rideConfig.optBoolean("auto", false), now);
         }
         if (link.isReady(config.address) && config.address.equals(authenticated)) auto.linkUp(now);
