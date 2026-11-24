@@ -1,0 +1,7 @@
+Bug Fixes:
+
+- keep ride colours when zoomed out, record battery in auto-rides, show history loading
+
+Features:
+
+- set auto-connect's signal levels and times in Settings

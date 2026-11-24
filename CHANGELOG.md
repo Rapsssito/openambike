@@ -2,6 +2,16 @@
 
 Unofficial, open-source companion app for Ampler e-bikes. Not affiliated with or endorsed by Ampler Bikes OÜ.
 
+# [2.2.0](https://github.com/Rapsssito/openambike/compare/v2.1.0...v2.2.0) (2026-11-24)
+
+### Bug Fixes
+
+* **app:** keep ride colours when zoomed out, record battery in auto-rides, show history loading ([8f3dbdb](https://github.com/Rapsssito/openambike/commit/8f3dbdb57c749189c1cf6522f17d7eb502de2e2b))
+
+### Features
+
+* **app:** set auto-connect's signal levels and times in Settings ([53bb314](https://github.com/Rapsssito/openambike/commit/53bb3142605e7516c15687348e4389579dad961b))
+
 # [2.1.0](https://github.com/Rapsssito/openambike/compare/v2.0.1...v2.1.0) (2026-11-23)
 
 ### Bug Fixes
